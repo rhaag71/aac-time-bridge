@@ -21,6 +21,16 @@ NTP stratum and reported time quality reflect the actual active time source,
 including GPS/PPS-disciplined time, future holdover support, upstream NTP
 fallback, or an unsynchronized state.
 
+## Clock Interface Protocol
+
+The RP2350 clock-source interface is defined in
+[`docs/clock-network-protocol.md`](docs/clock-network-protocol.md).
+
+The authoritative copy is maintained by the Absurdly Accurate Clock project.
+The copy in this repository is kept in sync for development of AAC Time Bridge.
+Protocol changes should originate in the clock-source project and require
+corresponding review here.
+
 ## Hardware
 
 - NodeMCU ESP-32S / ESP-WROOM-32
