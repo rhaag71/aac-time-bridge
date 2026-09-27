@@ -4,18 +4,19 @@
  * SPDX-License-Identifier: MIT
  */
 #include <Arduino.h>
+#include "Application.h"
+
+namespace {
+aac::Application application;
+}
 
 void setup()
 {
-    Serial.begin(115200);
-    delay(500);
-
-    Serial.println();
-    Serial.println("AAC Time Bridge");
-    Serial.println("NodeMCU ESP-32S");
+    application.begin();
 }
 
 void loop()
 {
-    delay(1000);
+    application.poll();
+    delay(10); // Yield to the Arduino/RTOS runtime.
 }
