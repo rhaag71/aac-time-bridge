@@ -338,6 +338,27 @@ millisecond absolute accuracy. Absolute end-to-end timing against the physical
 AAC/GPS PPS boundary remains **unqualified**; an independent oscilloscope
 measurement against that PPS reference is planned.
 
+#### Wi-Fi modem-sleep A/B (2026-09-28)
+
+An A/B test on the NodeMCU-32S compared the framework-default `MIN_MODEM`
+station setting with modem sleep disabled. Both runs used the same application
+loop, NTP service, and external 100-request client test; only the Wi-Fi sleep
+setting changed. Internal application/NTP timing instrumentation did not show
+service-loop intervals large enough to explain Variant A's latency excursions.
+
+| Wi-Fi setting | Qualified replies | Delay mean | Median | Maximum | Standard deviation |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Framework-default `MIN_MODEM` | 94/100 | 106.874 ms | 40.005 ms | 294.887 ms | 98.327 ms |
+| Modem sleep disabled | 100/100 | 14.889 ms | 14.845 ms | 25.508 ms | 2.498 ms |
+
+Disabling modem sleep collapsed the large latency bands in this setup while
+application timing remained otherwise similar. This is strong evidence that
+modem sleep caused the observed excursions in this test, and supports the
+production choice to trade Wi-Fi power savings for more consistent NTP network
+latency. It is LAN timing characterization, not absolute UTC accuracy; end-to-end
+timing against the physical AAC/GPS PPS reference remains unqualified until the
+planned independent oscilloscope measurement.
+
 ## Appliance management
 
 GET /manage/reboot and GET /manage/factory-reset redirect to the canonical page.

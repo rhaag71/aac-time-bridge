@@ -25,6 +25,7 @@ struct Diagnostics {
     int watchdogError = 0;
     unsigned watchdogTimeoutSeconds = 30;
     bool benchBuild = false;
+    const char* buildFlavor = "PRODUCTION";
     PicoDiagnostics pico;
     NtpDiagnostics ntp;
 };

@@ -21,6 +21,10 @@ void NetworkServices::begin() {
     }
     WiFi.persistent(false); // Application NVS record is the sole credential store.
     WiFi.setAutoReconnect(false);
+    // Configure sleep before starting STA. Arduino-ESP32 retains this setting
+    // and reapplies it when the station interface starts again.
+    if (WiFi.getSleep() != WIFI_PS_NONE && !WiFi.setSleep(false))
+        Serial.println("Warning: could not disable Wi-Fi modem sleep.");
     WiFi.mode(WIFI_STA);
     WiFi.setHostname("aac-time-bridge");
     const auto now = static_cast<MonotonicUs>(esp_timer_get_time());

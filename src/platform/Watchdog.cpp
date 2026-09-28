@@ -31,6 +31,12 @@ void Watchdog::captureReset(Diagnostics& d) {
     d.watchdogReset = reason == ESP_RST_TASK_WDT || reason == ESP_RST_INT_WDT || reason == ESP_RST_WDT;
 #ifdef AAC_WATCHDOG_BENCH
     d.benchBuild = true;
+    d.buildFlavor = "WATCHDOG BENCH";
+#elif defined(AAC_DIAGNOSTIC_BUILD)
+    // Diagnostic-only PlatformIO environments should define AAC_DIAGNOSTIC_BUILD.
+    d.buildFlavor = "DIAGNOSTIC";
+#else
+    d.buildFlavor = "PRODUCTION";
 #endif
 }
 void Watchdog::begin(Diagnostics& d) {

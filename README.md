@@ -121,6 +121,16 @@ relative to the T470 system clock; network delay ranged from 8.061 to 232.187 ms
 absolute UTC error. Absolute accuracy against the AAC/GPS PPS boundary remains
 unqualified pending an independent oscilloscope measurement.
 
+Wi-Fi modem sleep is intentionally disabled before station startup because
+predictable NTP LAN latency matters more here than ESP32 Wi-Fi power savings.
+In a 2026-09-28 NodeMCU A/B test, framework-default MIN_MODEM produced 94/100
+qualified replies with network delay mean/median/max/stdev of
+106.874/40.005/294.887/98.327 ms. With modem sleep disabled, 100/100 replies
+qualified and those values were 14.889/14.845/25.508/2.498 ms. This supports
+modem sleep as the cause of the large latency excursions on the tested setup;
+it does not establish absolute UTC accuracy, which remains unqualified pending
+measurement against the physical AAC/GPS timing reference.
+
 The v1 SPI/TIME_SYNC path has now been exercised on hardware: ACT1 packets and CRC
 validate, AAC UTC qualifies, phase association is established, and sequences
 progress. Next verify the live `/telemetry` display on LAN and the recovery AP,

@@ -71,7 +71,7 @@ void Application::poll() {
 }
 void Application::printBootBanner() const {
     Serial.printf("\nAAC Time Bridge | Firmware: AAC Protocol v1 acquisition | Build: %s | %s %s\nReset: %s (%d)\n",
-        state_.diagnostics.benchBuild ? "WATCHDOG BENCH" : "PRODUCTION", __DATE__, __TIME__,
+        state_.diagnostics.buildFlavor, __DATE__, __TIME__,
         state_.diagnostics.resetReason, state_.diagnostics.resetCode);
 }
 void Application::printStatus(const char* prefix) const {

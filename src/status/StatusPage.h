@@ -171,7 +171,8 @@ inline size_t renderStatusPage(char* output, size_t capacity, const ApplianceSta
         static_cast<unsigned long>(pd.transactions), static_cast<unsigned long>(pd.validPackets),
         static_cast<unsigned long>(pd.capturedEdges),
         static_cast<unsigned long>(pd.edgeOverflows)); p.row("AAC acquisition", detail, "pico-acquisition");
-    p.row("Firmware", s.diagnostics.benchBuild ? "AAC Protocol v1 / WATCHDOG BENCH" : "AAC Protocol v1 / PRODUCTION");
+    snprintf(detail, sizeof(detail), "AAC Protocol v1 / %s", s.diagnostics.buildFlavor);
+    p.row("Firmware", detail);
     p.row("Build", __DATE__ " " __TIME__);
     p.add("</dl></section></div>");
     if (setup) {
@@ -275,7 +276,8 @@ inline size_t renderTelemetryResponse(char* output, size_t capacity, const Appli
         static_cast<unsigned long>(pd.transactions), static_cast<unsigned long>(pd.validPackets),
         static_cast<unsigned long>(pd.capturedEdges), static_cast<unsigned long>(pd.edgeOverflows));
     json.field("picoAcquisition", detail);
-    json.field("firmware", s.diagnostics.benchBuild ? "AAC Protocol v1 / WATCHDOG BENCH" : "AAC Protocol v1 / PRODUCTION");
+    snprintf(detail, sizeof(detail), "AAC Protocol v1 / %s", s.diagnostics.buildFlavor);
+    json.field("firmware", detail);
     json.field("build", __DATE__ " " __TIME__);
     json.finish();
     const size_t jsonSize = json.size();
