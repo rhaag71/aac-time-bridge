@@ -9,8 +9,8 @@ AAC Time Bridge is a network time appliance and companion project for the
 It runs on an ESP32 as a standalone network appliance that can consume time
 from the RP2350-based Absurdly Accurate Clock.
 
-The Pico is the known authoritative external source. The planned appliance
-serves its qualified UTC to the LAN via NTP. It does not use Internet NTP or the
+The Pico is the known authoritative external source. NTP serving its qualified
+UTC to the LAN is future work. The appliance does not use Internet NTP or the
 ESP32 system clock as a fallback. Without trustworthy external time it remains
 operational and UNSYNCHRONIZED; it never manufactures authoritative time.
 
@@ -30,6 +30,73 @@ corresponding review here.
 - RP2350 interface using reserved GP8-GP13 pins
 - ESP32 assignments: [pin reference](Paper-Documents/aac-time-bridge-pin-assignment-rev1.pdf)
   (Pico GP numbers above are not ESP32 GPIO numbers).
+
+## Pico Protocol v1 acquisition
+
+The production firmware now implements the v1 read-only Pico source. Wiring is:
+
+| ESP32 NodeMCU-32S | Pico 2 / RP2350 | Signal |
+| --- | --- | --- |
+| GPIO23 / physical 37 | GP8 | VSPI MOSI → SPI1 RX |
+| GPIO27 / physical 11 | GP9 | Software CS → SPI1 CSn, active low |
+| GPIO18 / physical 30 | GP10 | VSPI SCLK → SPI1 SCK |
+| GPIO19 / physical 31 | GP11 | VSPI MISO ← SPI1 TX |
+| GPIO25 / physical 9 | GP12 | TIME_SYNC input |
+
+Use a shared ground and 3.3 V logic only. Keep GPIO27 idle high; an external
+10 kOhm pull-up to Pico 3V3 is recommended. GPIO26 remains reserved and
+unconfigured, GPIO16 remains the external status LED, and GPIO25 has internal
+pulls disabled. Do not drive an unpowered board through its signal pins.
+
+SPI starts at 100 kHz, mode 1, MSB first, 8-bit words. The controller waits at
+least one second before its first request, holds CS high for at least 1 ms
+between transactions, runs no faster than 10 transactions per second, waits
+100 us after CS low, transfers exactly 40 continuous bytes with zero MOSI, holds
+CS low 10 us after the last clock, then deasserts it. Pico acquisition begins
+after the appliance's five-second serial startup delay, then waits another
+second. This satisfies the protocol startup guard when the boards start together
+or the Pico is already running; v1 has no boot signal to identify a Pico powered
+on later, so independent late power-up needs explicit bench attention.
+
+GPIO25 rising edges are timestamped by a short ISR and queued for the application
+loop. After the protocol's 1 ms publication delay, one SPI snapshot is associated
+only if no edge raced the transaction. The source estimates the authoritative
+boundary as captured TIME_SYNC time minus `sync_delay_us`. Qualification requires
+UTC_VALID, PPS_PRESENT, PPS_LOCKED and SYNC_VALID, then continuous boundary and
+sync sequence progression. First alignment, discontinuities and Pico resets
+require a fresh edge/packet relationship. No qualifying edge for 1.5 seconds,
+invalid packets/flags, sequence gaps, or lost communication clear clock authority
+to UNSYNCHRONIZED. UTC_VALID-clear zero remains an invalid sentinel; there is no
+system-clock, browser-clock, Internet or stale-time fallback.
+
+The status page exposes the centralized acquisition snapshot. While Pico
+authority is unhealthy, Serial prints one concise human-readable bring-up line
+immediately on rejection/qualification-reason changes and at most once every two
+seconds otherwise. It includes the transaction count, packet result, captured
+edge count, phase association, ages, and—when safe—decoded flags/sequences and
+satellite count. Rejected 40-byte responses include the first eight bytes in
+hex and printable ASCII. Once authority is acquired, recurring bring-up output
+stops and one acquisition transition is printed; loss resumes the unhealthy
+reports. Output is deferred unless the complete bounded line fits in the UART
+transmit queue. No formatting or printing occurs in the TIME_SYNC ISR. These
+diagnostics help bench work but do not validate electrical timing. The
+acquisition has not yet been bench-validated on connected Pico hardware. NTP
+serving and WebSocket/live browser telemetry remain unimplemented.
+
+Recommended first hardware bench: with both boards unpowered, connect the five
+signals above plus shared ground, verify no 5 V connection, and add the GPIO27
+CS pull-up. Flash the production ESP32 build, open the 115200-baud monitor, and
+start the Pico and ESP32 together (or leave the Pico running for at least one
+second before ESP32 acquisition begins). With a qualified Pico source, refresh
+`/` and watch the packet/boundary/sync sequences, flags, satellite count, packet
+age, edge age and phase status. Qualification should become synchronized only
+after a clean edge/snapshot pair and consecutive boundaries. Press the Pico reset
+button while the ESP32 remains running: the ESP32 should remain alive, drop its
+authority on timeout/discontinuity, and re-earn it from fresh edges. For absent
+source behavior, power both down, disconnect Pico signals safely, then boot the
+ESP32 alone and verify `UNSYNCHRONIZED` with no watchdog reset. Restore wiring
+only with power off. These checks are still pending; compile and host tests do
+not validate the electrical timing or a real TIME_SYNC phase.
 
 ## Build, upload and monitor
 
@@ -93,8 +160,7 @@ startup sequence and begins with untrusted clock state.
    passwords support 8–63 characters or a 64-digit hexadecimal PSK.
 5. Credentials are validated and saved to the existing NVS configuration record.
    The same page shows connection feedback while the setup AP is available. It
-   does not refresh while you type.
-   while you type. If connection takes over 60 seconds, feedback asks you to check
+   does not refresh while you type. If connection takes over 60 seconds, feedback asks you to check
    the credentials/router; retries continue. Storage errors are reported without
    replacing the active configuration.
 6. Return to your normal network and browse the reported LAN IP for status.
@@ -215,17 +281,19 @@ validate actual watchdog recovery.
 
 ## Implementation and validation status
 
-Round 2 provides centralized state, a 30-second application task watchdog,
+The appliance uses centralized state, a 30-second application task watchdog,
 reset diagnostics, GPIO16 external status indication, persistent Wi-Fi,
-reconnection/recovery AP, web setup and local status. Pico acquisition remains
-an unavailable production stub. SPI/TIME_SYNC and NTP serving are not implemented.
+reconnection/recovery AP and a single-page local UI. Pico Protocol v1 SPI/TIME_SYNC
+acquisition is implemented in firmware but is not yet hardware bench-validated;
+NTP serving remains future work.
 
 Operator bench-verified on production NodeMCU ESP-32S: virgin boot starts the open
 AP; web provisioning saves credentials and joins the LAN; Serial immediately
 announces the LAN URL; normal web reboot preserves configuration; confirmed web
 factory reset erases AAC-owned configuration and returns to setup; reprovisioning
-works; clock stays UNSYNCHRONIZED with Pico not implemented. These observations
-precede this cleanup pass. Watchdog recovery has not been bench validated.
+works; clock stays UNSYNCHRONIZED with the earlier Pico stub. Those observations
+precede this acquisition milestone. The new SPI/TIME_SYNC path and watchdog
+recovery have not been bench validated.
 
 This pass's lowercase console/editing/password echo, visible new web-password
 entry, unconfigured status regression fix, and AP shutdown/recovery lifecycle

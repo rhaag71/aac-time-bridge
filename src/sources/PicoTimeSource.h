@@ -2,23 +2,23 @@
 // SPDX-License-Identifier: MIT
 #pragma once
 #include "clock/TimeSource.h"
+#include "PicoProtocol.h"
 
 namespace aac {
-// Production external-source slot. Future transport/decoder stays behind this API.
-// Locked requires v1 UTC_VALID + PPS_PRESENT + PPS_LOCKED + SYNC_VALID AND
-// unambiguous captured-edge association. GPS_VALID is not a prerequisite.
+// SPI and GPIO boundary for Pico Protocol v1. Policy/packet validation is host-testable.
 class PicoTimeSource final : public TimeSource {
 public:
-    PicoTimeSource() { reset(); }
-    void begin(MonotonicUs) override { reset(); }
-    void poll(MonotonicUs) override {} // No SPI, pins, interrupts, or fabricated UTC.
-    const SourceState& state() const override { return state_; }
+    void begin(MonotonicUs now) override;
+    void poll(MonotonicUs now) override;
+    const SourceState& state() const override { return qualification_.state(); }
+    const PicoDiagnostics& diagnostics() const { return qualification_.diagnostics(); }
 private:
-    void reset() {
-        state_ = SourceState{};
-        state_.id = SourceId::Pico;
-        state_.error = SourceError::NotImplemented;
-    }
-    SourceState state_;
+    PicoQualification qualification_;
+    MonotonicUs startedAtUs_ = 0;
+    MonotonicUs nextTransactionAtUs_ = 0;
+    MonotonicUs lastTransactionAtUs_ = 0;
+    MonotonicUs lastCsHighAtUs_ = 0;
+    uint8_t tx_[kPicoPacketSize] = {};
+    uint8_t rx_[kPicoPacketSize] = {};
 };
 } // namespace aac

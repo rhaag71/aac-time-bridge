@@ -56,9 +56,8 @@ inline size_t renderStatusPage(char* output, size_t capacity, const ApplianceSta
         valid ? " valid" : "", valid ? "SYNCHRONIZED / SNAPSHOT" : "UNSYNCHRONIZED", clock,
         valid ? "Qualified external UTC at this snapshot. Refresh to update; this display does not run a local clock." :
                 "No qualified external time. The appliance is available; authoritative UTC is not.",
-        s.clock.pico.report.availability == Availability::Available ? "Available" : "Unavailable",
-        s.clock.pico.report.error == SourceError::NotImplemented ? "Acquisition not implemented" :
-            s.clock.pico.report.error == SourceError::None ? "No acquisition error" : "Source reports an error",
+        s.clock.pico.report.availability == Availability::Available ? "Responding" : "Unavailable",
+        sourceErrorName(s.clock.pico.report.error),
         valid ? "Pico" : "None");
     p.add("<div class='grid'><section class='section' id='network-panel'><div class='section-heading'><div><div class='eyebrow'>02 / Connectivity</div>"
         "<h2>Network</h2></div><span class='network-value micro'>%s</span></div><dl>", networkStatusName(s.network.status));
@@ -78,7 +77,31 @@ inline size_t renderStatusPage(char* output, size_t capacity, const ApplianceSta
     snprintf(detail, sizeof(detail), "%llu s", static_cast<unsigned long long>(now / 1000000ULL)); p.row("Uptime at snapshot", detail);
     p.row("Source UTC / quality", s.clock.pico.report.validity == TimeValidity::Valid ?
         (s.clock.pico.report.quality == SyncQuality::Locked ? "Valid / locked" : "Valid / not locked") : "Invalid / not qualified");
-    p.row("Firmware", s.diagnostics.benchBuild ? "Round 2 / WATCHDOG BENCH" : "Round 2 / PRODUCTION");
+    const PicoDiagnostics& pd = s.diagnostics.pico;
+    p.row("Pico packet", picoPacketResultName(pd.lastResult));
+    snprintf(detail, sizeof(detail), "%lu / boundary %lu / sync %lu",
+        static_cast<unsigned long>(pd.packetSequence), static_cast<unsigned long>(pd.boundarySequence),
+        static_cast<unsigned long>(pd.syncSequence)); p.row("Packet / boundary / sync sequence", detail);
+    snprintf(detail, sizeof(detail), "0x%04X / %s", static_cast<unsigned>(pd.flags),
+        (pd.flags & kPicoSatValid) ? "satellites valid" : "satellites invalid"); p.row("Pico flags", detail);
+    if (pd.flags & kPicoSatValid) snprintf(detail, sizeof(detail), "%u", pd.satellites);
+    else snprintf(detail, sizeof(detail), "Unavailable");
+    p.row("Satellites", detail);
+    if (pd.hasValidPacketAt && now >= pd.lastValidPacketAtUs)
+        snprintf(detail, sizeof(detail), "%llu ms", static_cast<unsigned long long>((now - pd.lastValidPacketAtUs) / 1000ULL));
+    else snprintf(detail, sizeof(detail), "Unavailable");
+    p.row("Last valid packet age", detail);
+    if (pd.hasEdgeAt && now >= pd.lastQualifiedEdgeAtUs)
+        snprintf(detail, sizeof(detail), "%llu ms", static_cast<unsigned long long>((now - pd.lastQualifiedEdgeAtUs) / 1000ULL));
+    else snprintf(detail, sizeof(detail), "Unavailable");
+    p.row("TIME_SYNC edge age", detail);
+    p.row("Phase association", pd.phaseAssociated ? "Established" : "Not established");
+    p.row("Source qualification", sourceErrorName(s.clock.pico.report.error));
+    snprintf(detail, sizeof(detail), "%lu transactions / %lu valid / %lu captured edges / %lu overruns",
+        static_cast<unsigned long>(pd.transactions), static_cast<unsigned long>(pd.validPackets),
+        static_cast<unsigned long>(pd.capturedEdges),
+        static_cast<unsigned long>(pd.edgeOverflows)); p.row("Pico acquisition", detail);
+    p.row("Firmware", s.diagnostics.benchBuild ? "Pico v1 / WATCHDOG BENCH" : "Pico v1 / PRODUCTION");
     p.row("Build", __DATE__ " " __TIME__);
     p.add("</dl></section></div>");
     if (setup) {

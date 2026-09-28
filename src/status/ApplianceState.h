@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 #pragma once
 #include "clock/ClockState.h"
+#include "sources/PicoProtocol.h"
 #include <limits.h>
 
 namespace aac {
@@ -23,6 +24,7 @@ struct Diagnostics {
     int watchdogError = 0;
     unsigned watchdogTimeoutSeconds = 30;
     bool benchBuild = false;
+    PicoDiagnostics pico;
 };
 struct NetworkState {
     NetworkStatus status = NetworkStatus::Unconfigured;

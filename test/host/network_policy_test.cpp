@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: MIT
 #include "network/NetworkPolicy.h"
 #include "status/StatusPage.h"
-#include "sources/PicoTimeSource.h"
 #include <assert.h>
 #include <initializer_list>
 #include <string.h>
@@ -17,7 +16,7 @@ int main() {
         const auto o = policy.observe(false, linkReady, true, 0, 10);
         state.network.status = o.status;
         assert(o.status == NetworkStatus::Unconfigured && !o.connected && !o.announceLan && !o.stopAp);
-        renderStatusPage(page, sizeof(page), state, 10);
+        assert(renderStatusPage(page, sizeof(page), state, 10) > 0);
         assert(strstr(page, "UNSYNCHRONIZED"));
         assert(strstr(page, "--:--:--"));
         assert(strstr(page, "unconfigured"));
@@ -53,9 +52,10 @@ int main() {
     assert(o.stopAp && o.announceLan); // Recovery repeats the immediate LAN announcement.
     state.network.status = o.status;
     strcpy(state.network.address, "192.168.88.123");
-    PicoTimeSource pico;
-    state.clock = selectClock(pico.state(), 131000000);
-    renderStatusPage(page, sizeof(page), state, 131000000);
+    SourceState unavailablePico; unavailablePico.id = SourceId::Pico;
+    unavailablePico.error = SourceError::NoCommunication;
+    state.clock = selectClock(unavailablePico, 131000000);
+    assert(renderStatusPage(page, sizeof(page), state, 131000000) > 0);
     assert(strstr(page, "connected"));
     assert(strstr(page, "--:--:--"));
     assert(!strstr(page, "PRIVATE-secret9")); // Status rendering has no credential input.

@@ -1,7 +1,6 @@
 // Copyright (c) 2026 Rob Haag
 // SPDX-License-Identifier: MIT
 #include "clock/ClockState.h"
-#include "sources/PicoTimeSource.h"
 #include "status/ApplianceState.h"
 #include "network/Configuration.h"
 #include "network/HttpRequest.h"
@@ -10,6 +9,16 @@
 #include <initializer_list>
 
 using namespace aac;
+
+class UnavailablePico : public TimeSource {
+public:
+    UnavailablePico() { state_.id = SourceId::Pico; state_.error = SourceError::NoCommunication; }
+    void begin(MonotonicUs) override { state_.anchor = TimeAnchor{}; }
+    void poll(MonotonicUs) override {}
+    const SourceState& state() const override { return state_; }
+private:
+    SourceState state_;
+};
 
 SourceState ready(SourceId id) {
     SourceState s;
@@ -29,7 +38,7 @@ SourceState ready(SourceId id) {
 }
 
 int main() {
-    PicoTimeSource pico;
+    UnavailablePico pico;
     ClockCoordinator clock(pico);
     clock.begin(0);
     for (MonotonicUs now : {0ULL, 1500000ULL, 5000000000ULL}) {
@@ -39,7 +48,7 @@ int main() {
         assert(s.status == ClockStatus::Unsynchronized);
         assert(s.anchor.presence == Presence::Unknown);
         assert(s.pico.report.id == SourceId::Pico);
-        assert(s.pico.report.error == SourceError::NotImplemented);
+        assert(s.pico.report.error == SourceError::NoCommunication);
         assert(s.pico.report.availability == Availability::Unavailable);
         assert(s.pico.report.validity == TimeValidity::Invalid);
         assert(s.pico.freshness == Freshness::Unknown);

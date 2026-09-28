@@ -13,7 +13,11 @@ enum class Availability { Unavailable, Available };
 enum class TimeValidity { Invalid, Valid };
 enum class SyncQuality { Unsynchronized, Locked, Holdover };
 enum class Freshness { Unknown, Fresh, Stale };
-enum class SourceError { None, NotImplemented, Transport, InvalidData, AssociationLost };
+enum class SourceError {
+    None, NotImplemented, Transport, InvalidData, AssociationLost,
+    NoCommunication, InvalidPacket, UtcUnavailable, NotLocked,
+    SequenceDiscontinuity, EdgeTimeout, EdgeOverflow
+};
 enum class Presence { Unknown, Known };
 
 struct ObservationTime {

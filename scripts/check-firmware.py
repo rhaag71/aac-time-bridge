@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""After both builds, verify production/bench command and function separation."""
+"""Inspect built firmware for Pico v1 acquisition, UI, and bench isolation."""
 from pathlib import Path
 import argparse
 import subprocess
@@ -27,4 +27,10 @@ for env in ('nodemcu-32s', 'watchdog-bench'):
     assert b"method='post' action='/manage/factory-reset'" in binary, env
     assert b"new Date(" not in binary and b"Intl.DateTimeFormat" not in binary, env
     assert b"login" not in binary.lower() and b"api key" not in binary.lower(), env
-    print(f'{env}: lowercase commands, visible new-password field, and bench isolation passed')
+    assert 'aac::PicoTimeSource::poll(' in symbols, env
+    assert 'aac::decodePicoPacket(' in symbols and 'aac::PicoQualification::observePacket(' in symbols, env
+    assert 'SPIClass::transferBytes(' in symbols, env
+    assert b'TIME_SYNC timeout' in binary and b'sequence discontinuity' in binary, env
+    assert b'PICO: tx=' in binary and b'BAD MAGIC' in binary, env
+    assert b'authority acquired UTC_VALID' in binary, env
+    print(f'{env}: Pico v1 acquisition, human-readable serial diagnostics, UI, lowercase commands, and bench isolation passed')

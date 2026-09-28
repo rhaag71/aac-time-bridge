@@ -7,14 +7,15 @@ is the sole current source. There is no upstream Internet NTP source, fallback,
 ESP32 wall-clock substitute, synthetic epoch, or implicit holdover. If no source
 qualifies, selection is None, the selected anchor is cleared, and the clock is
 UNSYNCHRONIZED. Wi-Fi, configuration, status and normal application execution
-continue. NTP serving and Pico SPI/TIME_SYNC transport are not implemented.
+continue. Pico Protocol v1 SPI/TIME_SYNC acquisition is implemented; NTP serving
+remains future work.
 
 Round 1's upstream stub, source enum, network synchronization quality, fallback
 policy, configuration host and unused service contracts were removed. The small
 TimeSource interface remains for genuine external sources. No source registry
-or speculative alternate source was added. PicoTimeSource still reports
-unavailable / invalid / NotImplemented, which describes implementation status,
-not a diagnosis that the hardware is absent or faulty.
+or speculative alternate source was added. PicoTimeSource implements the v1
+source boundary; absent or malformed hardware remains an ordinary source state,
+never a watchdog fault.
 
 ## Ownership and state
 
@@ -35,6 +36,78 @@ anchor, and guards signed overflow. UTC is displayed as signed Unix seconds,
 not through ESP32 system time or a narrowing time_t. This is representation,
 not an accuracy claim. The web page is a refreshable snapshot. No async consumer
 retains state references; future concurrent tasks will require synchronized copies.
+
+## Pico Protocol v1 acquisition
+
+The pin assignment is GPIO23 VSPI MOSI to Pico GP8/SPI1 RX, GPIO27 software CS
+to GP9/CSn, GPIO18 SCLK to GP10/SCK, GPIO19 MISO from GP11/TX, and GPIO25 input
+from GP12/TIME_SYNC. Connect grounds and use 3.3 V logic only. GPIO27 is active
+low and initialized HIGH before SPI setup; an external 10 kOhm pull-up to Pico
+3V3 is recommended. GPIO25 is input-only with internal pulls disabled. GPIO26 is
+not configured or touched; GPIO16 remains the appliance LED.
+
+The ESP32 uses VSPI mode 1, MSB first, 8-bit words at 100 kHz, software CS and
+one 40-byte `SPI.transferBytes` operation with a zero-filled MOSI buffer. The
+sequence is bounded: at least 1 second before first request, at least 1 ms CS
+high between requests, no more than 10 transactions per second, 100 us after CS
+low before clocks, and 10 us CS hold after the final clock. No response wait or
+DMA is involved; the ESP32 generates all 40 bytes of SCLK. Source initialization
+happens after the appliance's intentional five-second startup delay. This
+provides more than the protocol's one-second Pico startup guard when the boards
+power up together or the Pico is already running. v1 has no Pico boot signal, so
+independently powering the Pico after the ESP32 remains an assumption to check;
+do not consider this a hardware-qualified startup detector.
+
+TIME_SYNC rising edges are captured by a GPIO ISR using the ESP timer's
+monotonic microsecond counter and a fixed eight-slot ring. The ISR only timestamps
+and queues. Main-loop code waits until an edge is at least 1 ms old, then starts
+the snapshot read. If another edge races the transaction, it discards that
+edge/packet pairing. Overflow or multiple queued edges invalidates alignment and
+requires a later clean relationship. No high-rate serial diagnostics run from
+the ISR.
+
+`PicoProtocol.cpp` decodes each byte explicitly and commits no packet fields
+unless the exact 40-byte size, ACT1 magic, version/length, reserved bits and
+bytes, CRC-32/ISO-HDLC, and v1 field invariants all pass. HOLDOVER and other
+reserved flags are rejected. Invalid UTC must carry zero, invalid sync must
+carry the FFFFFFFF delay sentinel, valid sync delay is at most 5000 us, and
+satellite sentinels/range are checked. The CRC implementation passes the
+123456789 check vector and the Pico repository's fixed invalid and beyond-2038
+golden packets.
+
+Authority requires UTC_VALID, PPS_PRESENT, PPS_LOCKED and SYNC_VALID plus a
+locally captured unambiguous edge. The estimated UTC boundary is the captured
+edge timestamp minus sync_delay_us. The first clean edge/packet pair aligns the
+sequence counters. Later accepted boundaries require sync_sequence and
+boundary_sequence to advance exactly one modulo 2^32 and packet_sequence to move
+forward modulo 2^32 without an ambiguous half-range jump. Repeated snapshots
+cannot advance the anchor. A discontinuity packet is discarded and the next
+clean edge/packet relationship must re-establish alignment. Sequence counters
+still have no boot identifier; the v1 edge relationship, continuity and stale
+timeout are the conservative recovery mechanism. No protocol change was made.
+
+The phase deadline expires 1.5 seconds after the last accepted TIME_SYNC edge.
+Malformed packets, invalid UTC/flags, edge races/overflow, missed boundaries,
+transport failures and expiry clear the selected anchor and return the clock to
+UNSYNCHRONIZED. A well-formed UTC_VALID packet without adequate PPS/edge proof is
+reported as valid-but-unqualified, never selected. Zero with UTC_VALID clear is
+only a sentinel. No system, browser, Internet, or stale Pico time substitutes
+for the lost source. Wi-Fi and the watchdog continue independently.
+
+Pico diagnostics in centralized state include transaction/valid-packet counts,
+last packet result, packet/boundary/sync sequences, flags, satellites when valid,
+age of the last valid packet, age of the last associated edge, association state,
+and a bounded qualification reason. The web page displays these at its normal
+snapshot refresh. While unhealthy, an application-context Serial reporter emits
+one bounded human-readable line on rejection/reason transitions and at most once
+every two seconds. It formats the existing source/clock state rather than
+reimplementing qualification. A rejected 40-byte response includes an eight-byte
+hex and printable-ASCII preview; validated packet fields are shown as readable
+flag names, sequences and satellite count. On acquisition it prints one
+authority-acquired transition and suppresses recurring bring-up lines until
+authority is lost. The reporter checks UART queue capacity before writing a
+whole line, and does no work in the TIME_SYNC ISR. These are observations for
+bring-up, not proof of electrical timing.
 
 ## Execution watchdog and resets
 
@@ -373,3 +446,14 @@ AP stop/recovery decisions and immediate LAN URL, plus existing reset/namespace
 contracts. scripts/check-firmware.py passed binary and ELF isolation checks for
 both environments. git diff --check passed and Protocol v1 has no diff. These are
 software results only; no hardware was flashed or newly bench-validated in this pass.
+
+Pico acquisition milestone software validation: the v1 decoder/qualifier host
+suite consumes the Pico repository's unchanged `network-v1-vectors.json`, verifies
+the CRC check vector, structural/semantic rejection, edge association, continuity,
+reboot-like sequence restart, timeout and unsynchronized recovery. Production and
+watchdog-bench builds include the hardware adapter; firmware inspection verifies
+the acquisition symbols and existing bench-only hang separation. `docs/clock-
+network-protocol.md` compares byte-for-byte equal to the Pico project's copy and
+was not modified. No connected-Pico hardware test has been performed. Follow the
+first-bench procedure in README before treating SPI mode, CS timing, edge phase,
+loss or requalification as validated.
