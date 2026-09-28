@@ -18,6 +18,9 @@ public:
     void poll(MonotonicUs now, NetworkState& state);
     void serve(ApplianceState& state);
     bool takeBenchRequest();
+#ifdef AAC_NTP_TIMING_DIAGNOSTICS
+    NtpTimingSnapshot takeNtpTimingSnapshot() { return ntpServer_.takeTimingSnapshot(); }
+#endif
 private:
     void startConnection(MonotonicUs now);
     void startAp();

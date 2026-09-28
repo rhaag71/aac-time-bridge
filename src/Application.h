@@ -7,6 +7,9 @@
 #include "platform/Watchdog.h"
 #include "platform/StatusIndicator.h"
 #include "network/NetworkServices.h"
+#ifdef AAC_NTP_TIMING_DIAGNOSTICS
+#include "diagnostics/TimingMetric.h"
+#endif
 namespace aac {
 class Application {
 public:
@@ -16,6 +19,18 @@ public:
 private:
     void printBootBanner() const;
     void printStatus(const char* prefix) const;
+#ifdef AAC_NTP_TIMING_DIAGNOSTICS
+    void prepareTimingReport(MonotonicUs now);
+    void serviceTimingReport();
+    TimingMetric loopIntervals_;
+    TimingMetric loopDurations_;
+    MonotonicUs previousPollAtUs_ = 0;
+    bool havePreviousPoll_ = false;
+    MonotonicUs lastTimingReportAtUs_ = 0;
+    BoundedSerialLine timingLines_[3];
+    char timingBuffers_[3][512] = {};
+    size_t nextTimingLine_ = 3;
+#endif
     PicoTimeSource pico_;
     ClockCoordinator clock_;
     ApplianceState state_;

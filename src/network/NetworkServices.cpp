@@ -6,6 +6,9 @@
 #include <esp_timer.h>
 #include <lwip/sockets.h>
 #include <errno.h>
+#if defined(AAC_NTP_TIMING_DISABLE_WIFI_SLEEP) && !defined(AAC_NTP_TIMING_DIAGNOSTICS)
+#error The Wi-Fi sleep A/B change must remain isolated to the NTP timing diagnostic build.
+#endif
 namespace aac {
 void NetworkServices::begin() {
     Preferences prefs;
@@ -21,6 +24,13 @@ void NetworkServices::begin() {
     }
     WiFi.persistent(false); // Application NVS record is the sole credential store.
     WiFi.setAutoReconnect(false);
+#if defined(AAC_NTP_TIMING_DIAGNOSTICS) && defined(AAC_NTP_TIMING_DISABLE_WIFI_SLEEP)
+    const bool sleepSettingOk = WiFi.setSleep(false);
+    Serial.printf("NTP timing experiment: Variant B / modem sleep disabled (%s)\n",
+                  sleepSettingOk ? "set" : "setting failed");
+#elif defined(AAC_NTP_TIMING_DIAGNOSTICS)
+    Serial.println("NTP timing experiment: Variant A / framework-default modem sleep (MIN_MODEM)");
+#endif
     WiFi.mode(WIFI_STA);
     WiFi.setHostname("aac-time-bridge");
     const auto now = static_cast<MonotonicUs>(esp_timer_get_time());
