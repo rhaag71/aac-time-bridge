@@ -5,7 +5,7 @@
 
 namespace aac {
 namespace {
-constexpr MonotonicUs kReportPeriodUs = 2000000ULL;
+constexpr MonotonicUs kReportPeriodUs = 30000000ULL;
 
 const char* packetText(PicoPacketResult result) {
     switch (result) {
@@ -100,14 +100,16 @@ PicoSerialReportKind PicoSerialDiagnostics::prepare(const ClockState& clock, con
     if (!output || !capacity) return PicoSerialReportKind::None;
     const bool isHealthy = healthy(clock);
     const bool changed = !hasCommitted_ || isHealthy != lastHealthy_ ||
-        clock.status != lastClockStatus_ || clock.pico.report.error != lastError_ ||
+        clock.status != lastClockStatus_ || clock.selected != lastSelected_ ||
+        clock.pico.report.availability != lastAvailability_ || clock.pico.report.validity != lastValidity_ ||
+        clock.pico.report.quality != lastQuality_ || clock.pico.report.error != lastError_ ||
         pico.lastResult != lastPacketResult_ || pico.phaseAssociated != lastPhaseAssociated_ ||
         (pico.lastResult == PicoPacketResult::Valid && pico.flags != lastFlags_);
 
     if (isHealthy) {
-        if (hasCommitted_ && lastHealthy_ && !changed) return PicoSerialReportKind::None;
+        if (hasCommitted_ && lastHealthy_) return PicoSerialReportKind::None;
         const int n = snprintf(output, capacity,
-            "PICO: authority acquired UTC_VALID phase=yes seq=%lu boundary=%lu sync=%lu flags=0x%04X\r\n",
+            "AAC: authority acquired UTC_VALID phase=yes seq=%lu boundary=%lu sync=%lu flags=0x%04X\r\n",
             static_cast<unsigned long>(pico.packetSequence),
             static_cast<unsigned long>(pico.boundarySequence),
             static_cast<unsigned long>(pico.syncSequence), static_cast<unsigned>(pico.flags));
@@ -168,7 +170,7 @@ PicoSerialReportKind PicoSerialDiagnostics::prepare(const ClockState& clock, con
         edgeAgeMs = static_cast<unsigned long long>((now - pico.lastQualifiedEdgeAtUs) / 1000ULL);
     }
     const int n = snprintf(output, capacity,
-        "PICO: tx=%lu packet=%s %s edge=%lu phase=%s packet-age=%s%llu ms qualified-edge-age=%s%llu ms reason=%s%s\r\n",
+        "AAC: tx=%lu packet=%s %s edge=%lu phase=%s packet-age=%s%llu ms qualified-edge-age=%s%llu ms reason=%s%s\r\n",
         static_cast<unsigned long>(pico.transactions), packetText(pico.lastResult), raw,
         static_cast<unsigned long>(pico.capturedEdges), pico.phaseAssociated ? "yes" : "no",
         packetAge, packetAgeMs, edgeAge, edgeAgeMs,
@@ -185,6 +187,10 @@ void PicoSerialDiagnostics::commit(const ClockState& clock, const PicoDiagnostic
     lastHealthy_ = healthy(clock);
     lastPrintedAtUs_ = now;
     lastClockStatus_ = clock.status;
+    lastSelected_ = clock.selected;
+    lastAvailability_ = clock.pico.report.availability;
+    lastValidity_ = clock.pico.report.validity;
+    lastQuality_ = clock.pico.report.quality;
     lastError_ = clock.pico.report.error;
     lastPacketResult_ = pico.lastResult;
     lastPhaseAssociated_ = pico.phaseAssociated;

@@ -31,33 +31,35 @@ int main() {
 
     auto kind = reporter.prepare(clock, pico, 0, line, sizeof(line), length);
     assert(kind == PicoSerialReportKind::Unhealthy);
+    assert(strstr(line, "AAC: tx=") != nullptr);
     assert(strstr(line, "packet=NO TRANSACTION") != nullptr);
     assert(strstr(line, "reason=no communication") != nullptr);
     reporter.commit(clock, pico, 0, kind);
-    assert(reporter.prepare(clock, pico, 1999999, line, sizeof(line), length) == PicoSerialReportKind::None);
-    assert(reporter.prepare(clock, pico, 2000000, line, sizeof(line), length) == PicoSerialReportKind::Unhealthy);
-    reporter.commit(clock, pico, 2000000, PicoSerialReportKind::Unhealthy);
+    assert(reporter.prepare(clock, pico, 29999999, line, sizeof(line), length) == PicoSerialReportKind::None);
+    assert(reporter.prepare(clock, pico, 30000000, line, sizeof(line), length) == PicoSerialReportKind::Unhealthy);
+    reporter.commit(clock, pico, 30000000, PicoSerialReportKind::Unhealthy);
 
     pico.transactions = 42;
     pico.lastResult = PicoPacketResult::BadMagic;
     pico.hasRawResponse = true;
     const uint8_t zeroes[8] = {};
     memcpy(pico.rawPreview, zeroes, sizeof(zeroes));
-    kind = reporter.prepare(clock, pico, 2000100, line, sizeof(line), length);
+    kind = reporter.prepare(clock, pico, 30000100, line, sizeof(line), length);
     assert(kind == PicoSerialReportKind::Unhealthy);
+    assert(strstr(line, "AAC: tx=42") != nullptr);
     assert(strstr(line, "packet=BAD MAGIC") != nullptr);
     assert(strstr(line, "rx[0:8]=00 00 00 00 00 00 00 00 ascii=\"........\"") != nullptr);
-    reporter.commit(clock, pico, 2000100, kind);
+    reporter.commit(clock, pico, 30000100, kind);
 
     pico.transactions = 43;
     const uint8_t printable[8] = {'A', 'C', 'T', 'X', 1, 40, ' ', '!' };
     memcpy(pico.rawPreview, printable, sizeof(printable));
-    kind = reporter.prepare(clock, pico, 2000200, line, sizeof(line), length);
+    kind = reporter.prepare(clock, pico, 30000200, line, sizeof(line), length);
     assert(kind == PicoSerialReportKind::None); // Same rejection reason; transactions do not spam.
-    kind = reporter.prepare(clock, pico, 4000100, line, sizeof(line), length);
+    kind = reporter.prepare(clock, pico, 60000100, line, sizeof(line), length);
     assert(kind == PicoSerialReportKind::Unhealthy);
     assert(strstr(line, "ascii=\"ACTX.( !\"") != nullptr);
-    reporter.commit(clock, pico, 4000100, kind);
+    reporter.commit(clock, pico, 60000100, kind);
 
     pico.lastResult = PicoPacketResult::Valid;
     pico.flags = kPicoUtcValid | kPicoPpsPresent | kPicoPpsLocked | kPicoSatValid;
@@ -66,38 +68,49 @@ int main() {
     pico.syncSequence = 456;
     pico.satellites = 8;
     pico.hasValidPacketAt = true;
-    pico.lastValidPacketAtUs = 4000000;
+    pico.lastValidPacketAtUs = 60000000;
     pico.hasEdgeAt = true;
-    pico.lastQualifiedEdgeAtUs = 3900000;
+    pico.lastQualifiedEdgeAtUs = 59900000;
     clock.pico.report.error = SourceError::NotLocked;
-    kind = reporter.prepare(clock, pico, 4000200, line, sizeof(line), length);
+    kind = reporter.prepare(clock, pico, 60000200, line, sizeof(line), length);
     assert(kind == PicoSerialReportKind::Unhealthy);
     assert(strstr(line, "flags=PPS_PRESENT|PPS_LOCKED|UTC_VALID|SAT_VALID") != nullptr);
     assert(strstr(line, "seq=123 boundary=456 sync=456 sat=valid:8") != nullptr);
     assert(strstr(line, "reason=PPS not locked/qualified") != nullptr);
     assert(strstr(line, "rx[0:8]") != nullptr); // Valid-but-unqualified responses include both decoded data and raw bytes.
-    reporter.commit(clock, pico, 4000200, kind);
+    reporter.commit(clock, pico, 60000200, kind);
 
     clock.status = ClockStatus::Synchronized;
     clock.selected = SourceId::Pico;
     clock.pico.report.error = SourceError::None;
     pico.phaseAssociated = true;
-    kind = reporter.prepare(clock, pico, 4100000, line, sizeof(line), length);
+    kind = reporter.prepare(clock, pico, 61000000, line, sizeof(line), length);
     assert(kind == PicoSerialReportKind::Acquired);
+    assert(strstr(line, "AAC: authority acquired") != nullptr);
     assert(strstr(line, "authority acquired UTC_VALID phase=yes") != nullptr);
-    reporter.commit(clock, pico, 4100000, kind);
-    assert(reporter.prepare(clock, pico, 10000000, line, sizeof(line), length) == PicoSerialReportKind::None);
+    reporter.commit(clock, pico, 61000000, kind);
+    pico.lastResult = PicoPacketResult::BadMagic; // Healthy authority suppresses diagnostic chatter.
+    assert(reporter.prepare(clock, pico, 100000000, line, sizeof(line), length) == PicoSerialReportKind::None);
 
     clock.status = ClockStatus::Unsynchronized;
     clock.selected = SourceId::None;
     clock.pico.report.error = SourceError::EdgeTimeout;
     pico.phaseAssociated = false;
-    kind = reporter.prepare(clock, pico, 10000100, line, sizeof(line), length);
+    kind = reporter.prepare(clock, pico, 100000100, line, sizeof(line), length);
     assert(kind == PicoSerialReportKind::Unhealthy);
     assert(strstr(line, "reason=TIME_SYNC expired") != nullptr);
 
     char shortLine[8];
-    assert(reporter.prepare(clock, pico, 10000100, shortLine, sizeof(shortLine), length) == PicoSerialReportKind::None);
-    puts("Pico serial diagnostics tests passed");
+    assert(reporter.prepare(clock, pico, 100000100, shortLine, sizeof(shortLine), length) == PicoSerialReportKind::None);
+
+    PicoSerialDiagnostics transitionReporter;
+    ClockState transitionClock;
+    transitionClock.pico.report.error = SourceError::NoCommunication;
+    PicoDiagnostics transitionPico;
+    assert(transitionReporter.prepare(transitionClock, transitionPico, 0, line, sizeof(line), length) == PicoSerialReportKind::Unhealthy);
+    transitionReporter.commit(transitionClock, transitionPico, 0, PicoSerialReportKind::Unhealthy);
+    transitionClock.pico.report.availability = Availability::Available;
+    assert(transitionReporter.prepare(transitionClock, transitionPico, 1000000, line, sizeof(line), length) == PicoSerialReportKind::Unhealthy);
+    puts("AAC serial diagnostics tests passed");
     return 0;
 }

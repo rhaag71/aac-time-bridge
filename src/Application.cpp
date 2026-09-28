@@ -70,7 +70,7 @@ void Application::poll() {
     watchdog_.completedPass(state_.diagnostics); // Sole feed, after all application work returns.
 }
 void Application::printBootBanner() const {
-    Serial.printf("\nAAC Time Bridge | Firmware: Pico Protocol v1 acquisition | Build: %s | %s %s\nReset: %s (%d)\n",
+    Serial.printf("\nAAC Time Bridge | Firmware: AAC Protocol v1 acquisition | Build: %s | %s %s\nReset: %s (%d)\n",
         state_.diagnostics.benchBuild ? "WATCHDOG BENCH" : "PRODUCTION", __DATE__, __TIME__,
         state_.diagnostics.resetReason, state_.diagnostics.resetCode);
 }
@@ -78,11 +78,11 @@ void Application::printStatus(const char* prefix) const {
     const auto& pico = state_.diagnostics.pico;
     const MonotonicUs packetAge = pico.hasValidPacketAt && state_.uptimeUs >= pico.lastValidPacketAtUs ? state_.uptimeUs - pico.lastValidPacketAtUs : 0;
     const MonotonicUs edgeAge = pico.hasEdgeAt && state_.uptimeUs >= pico.lastQualifiedEdgeAtUs ? state_.uptimeUs - pico.lastQualifiedEdgeAtUs : 0;
-    Serial.printf("%s | network=%s IP=%s setup-AP=%s AP-IP=%s | clock=%s selected=%s | Pico=%s/%s pkt=%lu bnd=%lu sync=%lu flags=0x%04X sat=%s%u tx=%lu edge=%lu overrun=%lu packet-age=%s%llu ms edge-age=%s%llu ms phase=%s reason=%s | watchdog=%s error=%d\n",
+    Serial.printf("%s | network=%s IP=%s setup-AP=%s AP-IP=%s | clock=%s selected=%s | AAC=%s/%s pkt=%lu bnd=%lu sync=%lu flags=0x%04X sat=%s%u tx=%lu edge=%lu overrun=%lu packet-age=%s%llu ms edge-age=%s%llu ms phase=%s reason=%s | watchdog=%s error=%d\n",
         prefix, networkStatusName(state_.network.status), state_.network.address,
         state_.network.provisioning ? "active" : "off", state_.network.apAddress,
         statusLedOn(state_) ? "synchronized" : "unsynchronized",
-        state_.clock.selected == SourceId::Pico ? "pico" : "none",
+        state_.clock.selected == SourceId::Pico ? "AAC" : "none",
         state_.clock.pico.report.availability == Availability::Available ? "responding" : "unavailable",
         picoPacketResultName(pico.lastResult), static_cast<unsigned long>(pico.packetSequence),
         static_cast<unsigned long>(pico.boundarySequence), static_cast<unsigned long>(pico.syncSequence), static_cast<unsigned>(pico.flags),

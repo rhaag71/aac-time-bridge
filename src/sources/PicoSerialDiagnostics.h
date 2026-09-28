@@ -24,7 +24,7 @@ private:
 };
 
 // Bounded application-context formatter. A report is committed only after its
-// complete line fits in the UART transmit queue.
+// complete line has been queued to the UART.
 class PicoSerialDiagnostics {
 public:
     PicoSerialReportKind prepare(const ClockState& clock, const PicoDiagnostics& pico,
@@ -37,6 +37,10 @@ private:
     bool lastHealthy_ = false;
     MonotonicUs lastPrintedAtUs_ = 0;
     ClockStatus lastClockStatus_ = ClockStatus::Unsynchronized;
+    SourceId lastSelected_ = SourceId::None;
+    Availability lastAvailability_ = Availability::Unavailable;
+    TimeValidity lastValidity_ = TimeValidity::Invalid;
+    SyncQuality lastQuality_ = SyncQuality::Unsynchronized;
     SourceError lastError_ = SourceError::NoCommunication;
     PicoPacketResult lastPacketResult_ = PicoPacketResult::Never;
     bool lastPhaseAssociated_ = false;

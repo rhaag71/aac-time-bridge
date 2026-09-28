@@ -181,5 +181,5 @@ int main(int argc, char** argv) {
     makePacket(packet, 0, 0, 0, 2200000001LL);
     source.observePacket(packet, sizeof(packet), 2000000, true, 1999900);
     assert(selectClock(source.state(), 2000000).selected == SourceId::Pico);
-    puts("Pico Protocol v1 CRC, golden vectors, packet validation and edge qualification tests passed");
+    puts("AAC Protocol v1 CRC, golden vectors, packet validation and edge qualification tests passed");
 }

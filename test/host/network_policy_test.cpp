@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 #include "network/NetworkPolicy.h"
 #include "status/StatusPage.h"
+#include "web/UiAssets.h"
 #include <assert.h>
 #include <initializer_list>
 #include <string.h>
@@ -23,6 +24,12 @@ int main() {
         assert(!strstr(page, "connecting"));
         assert(!strstr(page, "Current UTC:"));
         assert(!strstr(page, "new Date("));
+        assert(!strstr(page, "Every second needs a source."));
+        assert(!strstr(page, "Time reference / appliance console"));
+        const char* header = strstr(page, "<header>");
+        const char* refresh = strstr(page, "id='refresh'");
+        const char* clockPanel = strstr(page, "id='clock-panel'");
+        assert(header && refresh && clockPanel && refresh > header && refresh < clockPanel);
         assert(strstr(page, "method='post' action='/manage/reboot'"));
         assert(strstr(page, "method='post' action='/manage/factory-reset'"));
         assert(!strstr(page, "confirmation page"));
@@ -58,10 +65,51 @@ int main() {
     assert(renderStatusPage(page, sizeof(page), state, 131000000) > 0);
     assert(strstr(page, "connected"));
     assert(strstr(page, "--:--:--"));
+    assert(strstr(page, "Authoritative source / AAC"));
+    assert(!strstr(page, "External source / Pico"));
+    assert(!strstr(page, "Selected authority</div><strong id='selected-authority'>Pico"));
     assert(!strstr(page, "PRIVATE-secret9")); // Status rendering has no credential input.
     assert(!strstr(page, "name='ssid'")); // Setup is absent off the recovery AP.
     assert(strstr(page, "href='/ui.css'"));
     assert(strstr(page, "src='/ui.js'"));
+    assert(strstr(kUiJs, "fetch('/telemetry'"));
+    assert(strstr(kUiJs, "schedule(1000)"));
+    assert(strstr(kUiJs, "APPLIANCE UNREACHABLE"));
+    assert(!strstr(kUiJs, "new Date("));
+    char telemetry[4096];
+    SourceState qualified;
+    qualified.id = SourceId::Pico;
+    qualified.availability = Availability::Available;
+    qualified.validity = TimeValidity::Valid;
+    qualified.quality = SyncQuality::Locked;
+    qualified.error = SourceError::None;
+    qualified.anchor.presence = Presence::Known;
+    qualified.anchor.utcSeconds = 1700000000;
+    qualified.anchor.localUs = 1000000;
+    qualified.lastUpdate.presence = Presence::Known;
+    qualified.lastUpdate.atUs = 1000000;
+    qualified.usableUntil.presence = Presence::Known;
+    qualified.usableUntil.atUs = 5000000;
+    state.initialized = true;
+    state.clock = selectClock(qualified, 2000000);
+    state.network.status = NetworkStatus::Connected;
+    snprintf(state.network.address, sizeof(state.network.address), "192.168.1.20");
+    state.network.setupMessage = "Saved \"bridge\"\nJoining";
+    const size_t telemetrySize = renderTelemetryResponse(telemetry, sizeof(telemetry), state, 3000000);
+    assert(telemetrySize > 0 && telemetry[telemetrySize - 1] == '\n');
+    assert(strstr(telemetry, "Content-Type: application/json"));
+    assert(strstr(telemetry, "\"utcValid\":true"));
+    assert(strstr(telemetry, "\"utcSeconds\":1700000002"));
+    assert(strstr(telemetry, "\"selectedAuthority\":\"Absurdly Accurate Clock\""));
+    assert(strstr(telemetry, "Qualified AAC-derived UTC"));
+    assert(strstr(telemetry, "\"networkState\":\"connected\""));
+    assert(strstr(telemetry, "\"lanAddress\":\"192.168.1.20\""));
+    assert(strstr(telemetry, "Saved \\\"bridge\\\"\\u000AJoining"));
+    assert(!strstr(telemetry, "PRIVATE-secret9"));
+    state.clock = selectClock(unavailablePico, 3000000);
+    const size_t invalidTelemetrySize = renderTelemetryResponse(telemetry, sizeof(telemetry), state, 3000000);
+    assert(invalidTelemetrySize > 0 && strstr(telemetry, "\"utcValid\":false"));
+    assert(strstr(telemetry, "\"utcSeconds\":null"));
     state.network.provisioning = true;
     strcpy(state.network.apName, "AAC-Bridge-A1B2C3");
     assert(renderStatusPage(page, sizeof(page), state, 131000000, true) > 0);

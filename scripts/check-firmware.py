@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Inspect built firmware for Pico v1 acquisition, UI, and bench isolation."""
+"""Inspect built firmware for AAC v1 acquisition, UI, and bench isolation."""
 from pathlib import Path
 import argparse
 import subprocess
@@ -20,9 +20,12 @@ for env in ('nodemcu-32s', 'watchdog-bench'):
     assert b'factory reset' in binary, env
     assert b"name='password' type='text'" in binary, env
     assert b"name='password' type='password'" not in binary, env
-    assert b"AAC / TIME BRIDGE" in binary and b"Every second needs a source." in binary, env
+    assert b"AAC / TIME BRIDGE" in binary and b"Absurdly Accurate Clock" in binary, env
+    assert b"Every second needs a source." not in binary and b"Time reference / appliance console" not in binary, env
     assert b"--:--:--" in binary and b"UNSYNCHRONIZED" in binary, env
     assert b"/ui.css" in binary and b"/ui.js" in binary, env
+    assert b"/telemetry" in binary and b"application/json; charset=utf-8" in binary, env
+    assert b"schedule(1000)" in binary, env
     assert b"method='post' action='/manage/reboot'" in binary, env
     assert b"method='post' action='/manage/factory-reset'" in binary, env
     assert b"new Date(" not in binary and b"Intl.DateTimeFormat" not in binary, env
@@ -31,6 +34,6 @@ for env in ('nodemcu-32s', 'watchdog-bench'):
     assert 'aac::decodePicoPacket(' in symbols and 'aac::PicoQualification::observePacket(' in symbols, env
     assert 'SPIClass::transferBytes(' in symbols, env
     assert b'TIME_SYNC timeout' in binary and b'sequence discontinuity' in binary, env
-    assert b'PICO: tx=' in binary and b'BAD MAGIC' in binary, env
+    assert b'AAC: tx=' in binary and b'BAD MAGIC' in binary, env
     assert b'authority acquired UTC_VALID' in binary, env
-    print(f'{env}: Pico v1 acquisition, human-readable serial diagnostics, UI, lowercase commands, and bench isolation passed')
+    print(f'{env}: AAC v1 acquisition, human-readable serial diagnostics, UI, lowercase commands, and bench isolation passed')

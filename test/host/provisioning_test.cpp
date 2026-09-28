@@ -30,6 +30,10 @@ int main() {
     assert(feed(request, "GET /setup HTTP/1.1\r\nHost: bridge\r\n\r\n") == Result::Setup);
     request.clear();
     assert(feed(request, "GET /setup/result HTTP/1.0\r\n\r\n") == Result::Progress);
+    request.clear();
+    assert(feed(request, "GET /telemetry HTTP/1.1\r\nHost: bridge\r\n\r\n") == Result::Telemetry);
+    request.clear();
+    assert(feed(request, "POST /telemetry HTTP/1.1\r\n\r\n") == Result::Reject);
     request.clear(); assert(feed(request, "GET / HTTP/1.1\r\nHost: bridge\r\n\r\n") == Result::Status);
     request.clear(); assert(feed(request, "GET /ui.css HTTP/1.1\r\nHost: bridge\r\n\r\n") == Result::Css);
     request.clear(); assert(feed(request, "GET /ui.js HTTP/1.1\r\nHost: bridge\r\n\r\n") == Result::Js);

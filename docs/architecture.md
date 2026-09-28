@@ -2,12 +2,13 @@
 
 ## Product boundary
 
-The appliance exposes trustworthy external authoritative time to the LAN. Pico
-is the sole current source. There is no upstream Internet NTP source, fallback,
+The appliance exposes trustworthy external authoritative time to the LAN. The
+Absurdly Accurate Clock (AAC), currently running on a Pico 2 / RP2350, is the
+sole current source. There is no upstream Internet NTP source, fallback,
 ESP32 wall-clock substitute, synthetic epoch, or implicit holdover. If no source
 qualifies, selection is None, the selected anchor is cleared, and the clock is
 UNSYNCHRONIZED. Wi-Fi, configuration, status and normal application execution
-continue. Pico Protocol v1 SPI/TIME_SYNC acquisition is implemented; NTP serving
+continue. AAC Protocol v1 SPI/TIME_SYNC acquisition is implemented; NTP serving
 remains future work.
 
 Round 1's upstream stub, source enum, network synchronization quality, fallback
@@ -22,7 +23,7 @@ never a watchdog fault.
 main.cpp only delegates setup/poll and yields. Application owns the source,
 ClockCoordinator, ApplianceState, Watchdog, StatusIndicator and NetworkServices.
 Acquisition remains separate from pure selectClock policy. Available, valid,
-error-free, Locked Pico time needs an anchor, sensible timestamps and an
+error-free, Locked AAC time needs an anchor, sensible timestamps and an
 exclusive, known freshness deadline. Holdover is representable but ineligible.
 Contact alone cannot extend timing validity. Source diagnostics retain expired
 anchors; selected authoritative time does not. Zero is a legitimate monotonic
@@ -37,7 +38,7 @@ not through ESP32 system time or a narrowing time_t. This is representation,
 not an accuracy claim. The web page is a refreshable snapshot. No async consumer
 retains state references; future concurrent tasks will require synchronized copies.
 
-## Pico Protocol v1 acquisition
+## AAC acquisition over Protocol v1
 
 The pin assignment is GPIO23 VSPI MOSI to Pico GP8/SPI1 RX, GPIO27 software CS
 to GP9/CSn, GPIO18 SCLK to GP10/SCK, GPIO19 MISO from GP11/TX, and GPIO25 input
@@ -91,23 +92,25 @@ Malformed packets, invalid UTC/flags, edge races/overflow, missed boundaries,
 transport failures and expiry clear the selected anchor and return the clock to
 UNSYNCHRONIZED. A well-formed UTC_VALID packet without adequate PPS/edge proof is
 reported as valid-but-unqualified, never selected. Zero with UTC_VALID clear is
-only a sentinel. No system, browser, Internet, or stale Pico time substitutes
+only a sentinel. No system, browser, Internet, or stale AAC time substitutes
 for the lost source. Wi-Fi and the watchdog continue independently.
 
-Pico diagnostics in centralized state include transaction/valid-packet counts,
+AAC acquisition diagnostics in centralized state include transaction/valid-packet counts,
 last packet result, packet/boundary/sync sequences, flags, satellites when valid,
 age of the last valid packet, age of the last associated edge, association state,
-and a bounded qualification reason. The web page displays these at its normal
-snapshot refresh. While unhealthy, an application-context Serial reporter emits
-one bounded human-readable line on rejection/reason transitions and at most once
-every two seconds. It formats the existing source/clock state rather than
-reimplementing qualification. A rejected 40-byte response includes an eight-byte
+and a bounded qualification reason. The web page and `/telemetry` endpoint read
+these from the same application snapshot. While unhealthy, an application-context
+Serial reporter emits one bounded human-readable line on rejection/reason
+transitions and at most once every thirty seconds. It formats the existing
+source/clock state rather than reimplementing qualification. A rejected 40-byte response includes an eight-byte
 hex and printable-ASCII preview; validated packet fields are shown as readable
 flag names, sequences and satellite count. On acquisition it prints one
 authority-acquired transition and suppresses recurring bring-up lines until
-authority is lost. The reporter checks UART queue capacity before writing a
-whole line, and does no work in the TIME_SYNC ISR. These are observations for
-bring-up, not proof of electrical timing.
+authority is lost. Output is copied into a fixed line buffer and queued in
+small chunks no larger than the UART's current free capacity, so the ESP32's
+128-byte FIFO cannot permanently defer a longer report. The reporter commits
+only after the complete line is queued and does no work in the TIME_SYNC ISR.
+These are observations for bring-up, not proof of electrical timing.
 
 ## Execution watchdog and resets
 
@@ -161,12 +164,17 @@ and association state, irrespective of retained Wi-Fi configuration.
 ### Single-page appliance UI
 
 The root path is the canonical appliance page for LAN and recovery-AP use. It
-renders one centralized state snapshot: authoritative clock display, source,
-network, diagnostics, and management controls. Without qualified Pico time it
-shows `--:--:--` and UNSYNCHRONIZED; no ESP32 or browser clock is substituted.
-The page uses compact local CSS and vanilla JavaScript served from flash at
-`/ui.css` and `/ui.js`; no Internet assets, frameworks, or live telemetry are
-required. Refresh is an explicit snapshot fetch, not a clock. The recovery-AP
+renders a centralized snapshot of authoritative clock, source, network,
+diagnostics, and management controls. `/telemetry` returns the latest bounded
+JSON snapshot from that same state approximately once per second. The browser
+does not retain or queue updates: it issues the next request only after the
+previous one completes. Each response rechecks `currentUtc()` against the
+AAC-derived anchor and its freshness deadline. The browser formats the
+returned authoritative UTC second without interpolating it; invalid source
+state or a failed/stalled telemetry request clears the readout. Uptime and all
+other dynamic status values are re-anchored by each response. The manual
+Refresh status button is in the header. Local CSS and vanilla JavaScript are
+served from flash; there are no Internet assets or frameworks. The recovery-AP
 view includes the Wi-Fi form; it is omitted on LAN. `/setup` and `/setup/result`
 are AP-restricted compatibility redirects to `/`. Setup writes remain AP-only;
 management remains available on LAN and AP.
@@ -239,7 +247,7 @@ for Enter. Error text never includes submitted input. Terminal local echo must b
 disabled separately. Exact lowercase factory reset and (bench only) wedge watchdog
 replace uppercase spellings without aliases.
 The local HTTP page at / still consumes centralized appliance state and reports
-network/AP/storage, Pico availability/validity/quality, synchronization, qualified
+network/AP/storage, AAC availability/validity/quality, synchronization, qualified
 UTC, reset/watchdog diagnostics, firmware/build and uptime. No Internet connection
 is needed. There is no TLS, OTA, remote LAN configuration, or NTP listener.
 
@@ -252,18 +260,17 @@ connection changes cannot masquerade as success. NetworkServices publishes the
 result into ApplianceState::network before web/LED/serial consumers run. The web
 formatter was extracted without a visual redesign into StatusPage.h so tests
 render the actual HTML from that snapshot, not a stand-in string. Serial uses the
-same networkStatusName mapping. The reported unconfigured/connecting divergence
-was not reproduced from the inspected source; regression coverage now verifies
-the production state policy and exact HTML together. New firmware still needs a
-bench check to confirm the observed discrepancy is gone.
+same networkStatusName mapping. Regression coverage verifies the production
+state policy and exact HTML together.
 
 Policy emits link gained/lost and recovery/AP decisions. The usable-link transition
 immediately formats and prints LAN status: http://<IP>/ before stopping the AP;
 it is independent of the periodic diagnostic interval. The previous 30-second
 retry / 60-second recovery timing is retained. AP shutdown means the browser's
 page may disappear before showing success; user instructions direct
-them to the normal LAN and the Serial/router DHCP address. No scan, WebSocket,
-NTP, clock transport or authentication was added.
+them to the normal LAN and the Serial/router DHCP address. Live status uses
+bounded HTTP JSON polling rather than a persistent WebSocket; no NTP or
+authentication was added.
 
 ## Appliance management
 
@@ -377,7 +384,7 @@ NVS power-fail durability, Wi-Fi reconnection or sockets on actual ESP32 hardwar
 Next bench: boot with no Pico/no credentials, persist/reboot/reconfigure Wi-Fi,
 wrong credentials/router outage/recovery, recovery AP, interrupted/oversized/slow
 HTTP, storage failure, power/software/watchdog resets, and LED reset behavior.
-Then implement Pico packet decoding and conservative edge association with host
+Then implement AAC packet decoding and conservative edge association with host
 vectors before wiring/qualifying SPI and TIME_SYNC. NTP serving should be a later
 focused slice with request-time validity, uncertainty, leap/stratum/root quality
 and refusal/unsynchronized behavior defined before any authoritative replies.
@@ -401,7 +408,7 @@ bench-verified.
 
 
 First hardware update (operator-reported): NodeMCU-32S boots and remains running,
-periodic serial status reports unsynchronized / Pico not implemented / network=0 /
+periodic serial status reports unsynchronized / AAC not implemented / network=0 /
 watchdog armed. This establishes first boot behavior only, not watchdog recovery,
 Wi-Fi/AP/NVS/web or LED validation. The subsequent startup delay and web provisioning
 changes require bench validation: observe both banners and immediate readiness;

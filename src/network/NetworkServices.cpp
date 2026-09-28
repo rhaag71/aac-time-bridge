@@ -185,6 +185,8 @@ void NetworkServices::serve(const ApplianceState& state) {
             if (management_.pending()) reply("503 Service Unavailable", "Restart already scheduled. Please wait.");
             else if (result == HttpRequest::Result::Reject) reply("400 Bad Request", "Invalid or unsupported request.");
             else if (result == HttpRequest::Result::Status) statusPage(state);
+            else if (result == HttpRequest::Result::Telemetry)
+                responseSize_ = renderTelemetryResponse(response_, sizeof(response_), state, now);
             else if (result == HttpRequest::Result::Css) { staticResponse_ = kUiCss; responseSize_ = sizeof(kUiCss) - 1; }
             else if (result == HttpRequest::Result::Js) { staticResponse_ = kUiJs; responseSize_ = sizeof(kUiJs) - 1; }
             else if (result == HttpRequest::Result::RebootPage || result == HttpRequest::Result::FactoryResetPage) {

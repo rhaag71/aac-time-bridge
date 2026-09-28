@@ -8,7 +8,7 @@ namespace aac {
 // Bounded, single-request HTTP subset. No chunking, keep-alive or pipelining.
 class HttpRequest {
 public:
-    enum class Result { Pending, Status, Setup, Progress, Css, Js, Save, RebootPage, FactoryResetPage, Reboot, FactoryReset, Reject };
+    enum class Result { Pending, Status, Telemetry, Setup, Progress, Css, Js, Save, RebootPage, FactoryResetPage, Reboot, FactoryReset, Reject };
     Result append(char c) {
         if (result_ != Result::Pending) return result_;
         if (c == 0) return result_ = Result::Reject;
@@ -34,6 +34,7 @@ private:
         *end = 0;
         Result route = Result::Reject;
         if (!strcmp(headers_, "GET / HTTP/1.1") || !strcmp(headers_, "GET / HTTP/1.0")) route = Result::Status;
+        if (!strcmp(headers_, "GET /telemetry HTTP/1.1") || !strcmp(headers_, "GET /telemetry HTTP/1.0")) route = Result::Telemetry;
         if (!strcmp(headers_, "GET /ui.css HTTP/1.1") || !strcmp(headers_, "GET /ui.css HTTP/1.0")) route = Result::Css;
         if (!strcmp(headers_, "GET /ui.js HTTP/1.1") || !strcmp(headers_, "GET /ui.js HTTP/1.0")) route = Result::Js;
         if (!strcmp(headers_, "GET /setup HTTP/1.1") || !strcmp(headers_, "GET /setup HTTP/1.0")) route = Result::Setup;
