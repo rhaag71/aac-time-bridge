@@ -3,6 +3,7 @@
 #pragma once
 #include "clock/ClockState.h"
 #include "sources/PicoProtocol.h"
+#include "network/NtpState.h"
 #include <limits.h>
 
 namespace aac {
@@ -25,6 +26,7 @@ struct Diagnostics {
     unsigned watchdogTimeoutSeconds = 30;
     bool benchBuild = false;
     PicoDiagnostics pico;
+    NtpDiagnostics ntp;
 };
 struct NetworkState {
     NetworkStatus status = NetworkStatus::Unconfigured;

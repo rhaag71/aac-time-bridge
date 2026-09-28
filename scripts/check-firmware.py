@@ -36,4 +36,6 @@ for env in ('nodemcu-32s', 'watchdog-bench'):
     assert b'TIME_SYNC timeout' in binary and b'sequence discontinuity' in binary, env
     assert b'AAC: tx=' in binary and b'BAD MAGIC' in binary, env
     assert b'authority acquired UTC_VALID' in binary, env
+    assert b'ntpService' in binary and b'AAC ' in binary, env
+    assert 'aac::NtpServer::poll(' in symbols and 'aac::buildNtpResponse(' in symbols, env
     print(f'{env}: AAC v1 acquisition, human-readable serial diagnostics, UI, lowercase commands, and bench isolation passed')

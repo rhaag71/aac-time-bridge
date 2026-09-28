@@ -112,21 +112,38 @@ inline size_t renderStatusPage(char* output, size_t capacity, const ApplianceSta
         s.clock.pico.report.availability == Availability::Available ? "Responding" : "Unavailable",
         sourceErrorName(s.clock.pico.report.error),
         valid ? "Absurdly Accurate Clock" : "None");
+    char detail[128];
     p.add("<div class='grid'><section class='section' id='network-panel'><div class='section-heading'><div><div class='eyebrow'>02 / Connectivity</div>"
         "<h2>Network</h2></div><span id='network-state-heading' class='network-value micro'>%s</span></div><dl>", networkStatusName(s.network.status));
     p.row("Network state", networkStatusName(s.network.status), "network-state");
     p.row("LAN address", s.network.address[0] ? s.network.address : "Unavailable", "lan-address");
     p.row("Recovery AP", s.network.provisioning ? "Open / active" : "Off", "recovery-ap");
     p.row("AP address", s.network.provisioning ? s.network.apAddress : "Not active", "ap-address");
+    if (s.diagnostics.ntp.state == NtpServiceState::Listening) snprintf(detail, sizeof(detail), "Listening on UDP/123");
+    else if (s.diagnostics.ntp.state == NtpServiceState::Error)
+        snprintf(detail, sizeof(detail), "Socket error (%d)", s.diagnostics.ntp.lastError);
+    else snprintf(detail, sizeof(detail), "Not listening (off-LAN)");
+    p.row("NTP service", detail, "ntp-service");
+    snprintf(detail, sizeof(detail), "%s / stratum %u",
+        s.diagnostics.ntp.authorityQualified ? "Synchronized" : "Unsynchronized",
+        static_cast<unsigned>(s.diagnostics.ntp.stratum));
+    p.row("NTP state", detail, "ntp-state");
+    p.row("NTP reference", s.diagnostics.ntp.authorityQualified ? "AAC" : "INIT", "ntp-reference");
     p.row("Configuration storage", s.network.storageOk ? "OK" : "Error", "configuration-storage");
     p.row("AP operation", s.network.apError ? "Error / retry pending" : "No error", "ap-operation");
     p.add("</dl></section><section class='section' id='diagnostics-panel'><div class='section-heading'><div><div class='eyebrow'>03 / System health</div>"
         "<h2>Diagnostics</h2></div></div><dl>");
-    char detail[128];
     snprintf(detail, sizeof(detail), "%s / %u s", s.diagnostics.watchdogArmed ? "Armed" : "Not armed", s.diagnostics.watchdogTimeoutSeconds);
     p.row("Application watchdog", detail, "watchdog-status");
     snprintf(detail, sizeof(detail), "%s (%d)", s.diagnostics.resetReason, s.diagnostics.resetCode); p.row("Reset reason", detail, "reset-reason");
     snprintf(detail, sizeof(detail), "%s / API result %d", s.diagnostics.watchdogReset ? "Yes" : "No", s.diagnostics.watchdogError); p.row("Watchdog reset", detail, "watchdog-reset");
+    snprintf(detail, sizeof(detail), "%lu requests / %lu replies (%lu sync, %lu unsync, %lu rejected)",
+        static_cast<unsigned long>(s.diagnostics.ntp.requests),
+        static_cast<unsigned long>(s.diagnostics.ntp.replies),
+        static_cast<unsigned long>(s.diagnostics.ntp.synchronizedReplies),
+        static_cast<unsigned long>(s.diagnostics.ntp.unsynchronizedReplies),
+        static_cast<unsigned long>(s.diagnostics.ntp.rejectedRequests));
+    p.row("NTP traffic", detail, "ntp-requests");
     snprintf(detail, sizeof(detail), "%llu s", static_cast<unsigned long long>(now / 1000000ULL)); p.row("Uptime at snapshot", detail, "uptime-snapshot");
     p.row("Source UTC / quality", s.clock.pico.report.validity == TimeValidity::Valid ?
         (s.clock.pico.report.quality == SyncQuality::Locked ? "Valid / locked" : "Valid / not locked") : "Invalid / not qualified", "source-utc-quality");
@@ -218,6 +235,20 @@ inline size_t renderTelemetryResponse(char* output, size_t capacity, const Appli
     json.field("resetReason", detail);
     snprintf(detail, sizeof(detail), "%s / API result %d", s.diagnostics.watchdogReset ? "Yes" : "No", s.diagnostics.watchdogError);
     json.field("watchdogReset", detail);
+    json.field("ntpService", ntpServiceStateName(s.diagnostics.ntp.state));
+    snprintf(detail, sizeof(detail), "%s / stratum %u",
+        s.diagnostics.ntp.authorityQualified ? "Synchronized" : "Unsynchronized",
+        static_cast<unsigned>(s.diagnostics.ntp.stratum));
+    json.field("ntpState", detail);
+    json.field("ntpReference", s.diagnostics.ntp.authorityQualified ? "AAC" : "INIT");
+    json.number("ntpRequests", s.diagnostics.ntp.requests);
+    json.number("ntpReplies", s.diagnostics.ntp.replies);
+    json.number("ntpSynchronizedReplies", s.diagnostics.ntp.synchronizedReplies);
+    json.number("ntpUnsynchronizedReplies", s.diagnostics.ntp.unsynchronizedReplies);
+    json.number("ntpRejectedRequests", s.diagnostics.ntp.rejectedRequests);
+    json.number("ntpStratum", s.diagnostics.ntp.stratum);
+    json.field("ntpAuthorityQualified", s.diagnostics.ntp.authorityQualified);
+    json.number("ntpLastError", static_cast<unsigned long long>(s.diagnostics.ntp.lastError < 0 ? 0 : s.diagnostics.ntp.lastError));
     json.number("uptimeSeconds", static_cast<unsigned long long>(now / 1000000ULL));
     json.field("sourceUtcQuality", s.clock.pico.report.validity == TimeValidity::Valid ?
         (s.clock.pico.report.quality == SyncQuality::Locked ? "Valid / locked" : "Valid / not locked") : "Invalid / not qualified");

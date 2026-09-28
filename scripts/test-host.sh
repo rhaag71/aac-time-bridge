@@ -7,6 +7,9 @@ for source in test/host/*_test.cpp; do
     if [ "$source" = test/host/reset_adapter_test.cpp ]; then
         "${CXX:-g++}" -std=c++11 -Wall -Wextra -Werror -pedantic \
             -Itest/host/fakes -Isrc src/clock/ClockState.cpp src/sources/PicoProtocol.cpp src/sources/PicoSerialDiagnostics.cpp src/platform/ApplianceReset.cpp "$source" -o "$binary"
+    elif [ "$source" = test/host/ntp_protocol_test.cpp ]; then
+        "${CXX:-g++}" -std=c++11 -Wall -Wextra -Werror -pedantic \
+            -Isrc src/clock/ClockState.cpp src/sources/PicoProtocol.cpp src/network/NtpProtocol.cpp "$source" -o "$binary"
     else
         "${CXX:-g++}" -std=c++11 -Wall -Wextra -Werror -pedantic \
             -Isrc src/clock/ClockState.cpp src/sources/PicoProtocol.cpp src/sources/PicoSerialDiagnostics.cpp "$source" -o "$binary"

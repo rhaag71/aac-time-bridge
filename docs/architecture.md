@@ -8,8 +8,8 @@ sole current source. There is no upstream Internet NTP source, fallback,
 ESP32 wall-clock substitute, synthetic epoch, or implicit holdover. If no source
 qualifies, selection is None, the selected anchor is cleared, and the clock is
 UNSYNCHRONIZED. Wi-Fi, configuration, status and normal application execution
-continue. AAC Protocol v1 SPI/TIME_SYNC acquisition is implemented; NTP serving
-remains future work.
+continue. AAC Protocol v1 SPI/TIME_SYNC acquisition and the LAN NTP consumer are
+implemented.
 
 Round 1's upstream stub, source enum, network synchronization quality, fallback
 policy, configuration host and unused service contracts were removed. The small
@@ -249,7 +249,7 @@ replace uppercase spellings without aliases.
 The local HTTP page at / still consumes centralized appliance state and reports
 network/AP/storage, AAC availability/validity/quality, synchronization, qualified
 UTC, reset/watchdog diagnostics, firmware/build and uptime. No Internet connection
-is needed. There is no TLS, OTA, remote LAN configuration, or NTP listener.
+is needed. There is no TLS, OTA, or remote LAN configuration.
 
 ### Central network state and AP lifecycle
 
@@ -269,8 +269,74 @@ it is independent of the periodic diagnostic interval. The previous 30-second
 retry / 60-second recovery timing is retained. AP shutdown means the browser's
 page may disappear before showing success; user instructions direct
 them to the normal LAN and the Serial/router DHCP address. Live status uses
-bounded HTTP JSON polling rather than a persistent WebSocket; no NTP or
-authentication was added.
+bounded HTTP JSON polling rather than a persistent WebSocket. NTP binds only to
+the station/LAN IP; the recovery AP does not serve NTP.
+
+### LAN NTP consumer
+
+The NTP socket is owned by NetworkServices and binds UDP/123 to the current
+station interface address only. It is nonblocking, uses a fixed 512-byte receive
+buffer and bounded kernel receive buffer, and processes one datagram per
+application pass. No request backlog is allocated by the application. Basic
+48-byte NTP v3/v4 client requests are supported; malformed lengths and
+unsupported modes/versions are counted and dropped. Socket bind retries are
+spaced five seconds apart after an error.
+
+The packet builder is hardware-independent and consumes the centralized
+ClockState. It revalidates `currentUtc` at request receive and response transmit
+times. The reference timestamp is the qualified AAC anchor; receive and
+transmit timestamps are that same anchor advanced by monotonic elapsed time,
+including nanosecond anchor phase and a 32-bit NTP fractional second. The
+transmit timestamp is sampled immediately before bounded packet construction
+and UDP send. No ESP system time, upstream NTP, or stale anchor is consulted.
+
+The directly GPS-disciplined AAC is represented as stratum 1 with reference ID
+`AAC `, zero root delay, and 1 ms root dispersion. Valid replies use LI=0,
+version 4, server mode, and the client's transmit timestamp echoed as originate.
+Whenever qualification is absent or expires, the server still responds with
+LI=3, stratum 16, reference ID `INIT`, and zero reference/receive/transmit
+timestamps. It retains the originate echo. Malformed requests are dropped;
+valid requests during AAC loss receive an explicit unsynchronized response.
+Authority recovery needs no service restart.
+
+NTP diagnostics are centralized with appliance diagnostics: listener state,
+current authority qualification/stratum, request and reply counts split by
+synchronized state, rejected requests and the last socket error. Serial status
+prints the summary only at the existing low rate; the local page exposes the
+same snapshot. Host tests exercise packet semantics and timestamp conversion.
+
+#### LAN timing characterization (2026-09-28)
+
+A 100-request LAN test produced 100/100 qualified NTP responses. All responses
+had LI=0, NTP version 4, server mode, stratum 1, and the four-byte Reference ID
+`AAC ` (ASCII AAC followed by the required padding space). The client's
+transmit timestamp was echoed exactly in the response originate field in all
+100 samples. The Reference ID names the authoritative Absurdly Accurate Clock;
+AAC Time Bridge is the distribution server.
+
+| Client-clock offset relative to the T470 system clock | Result |
+| --- | ---: |
+| Minimum | -2.458 ms |
+| Mean | +34.915 ms |
+| Median | +30.521 ms |
+| Maximum | +81.181 ms |
+| Standard deviation | 22.575 ms |
+
+| NTP network delay | Result |
+| --- | ---: |
+| Minimum | 8.061 ms |
+| Mean | 104.382 ms |
+| Median | 97.801 ms |
+| Maximum | 232.187 ms |
+| Standard deviation | 64.781 ms |
+
+These results establish functional NTP behavior and characterize timing over
+this LAN/Wi-Fi path. The offset is relative to the T470 system clock, not an
+absolute UTC error measurement. Network/Wi-Fi latency was highly variable and
+appeared in distinct latency bands. These measurements do not establish
+millisecond absolute accuracy. Absolute end-to-end timing against the physical
+AAC/GPS PPS boundary remains **unqualified**; an independent oscilloscope
+measurement against that PPS reference is planned.
 
 ## Appliance management
 
@@ -379,15 +445,14 @@ POST framing/completion, body limits, duplicate/ambiguous headers, URL decoding,
 field duplication, credential limits and HTML escaping.
 `pio run -e nodemcu-32s -e watchdog-bench` compiles both hardware adapters/builds.
 Host tests do not validate watchdog hardware, reset classification, GPIO behavior,
-NVS power-fail durability, Wi-Fi reconnection or sockets on actual ESP32 hardware.
+NVS power-fail durability or Wi-Fi reconnection on actual ESP32 hardware. The
+LAN NTP socket was exercised in the 100-request characterization above.
 
-Next bench: boot with no Pico/no credentials, persist/reboot/reconfigure Wi-Fi,
-wrong credentials/router outage/recovery, recovery AP, interrupted/oversized/slow
-HTTP, storage failure, power/software/watchdog resets, and LED reset behavior.
-Then implement AAC packet decoding and conservative edge association with host
-vectors before wiring/qualifying SPI and TIME_SYNC. NTP serving should be a later
-focused slice with request-time validity, uncertainty, leap/stratum/root quality
-and refusal/unsynchronized behavior defined before any authoritative replies.
+Next bench: exercise NTP from a LAN client while AAC is qualified, then remove
+AAC authority and verify stratum-16 unsynchronized replies with no timestamps.
+Restore AAC/GPS qualification and verify automatic return to stratum 1. Confirm
+UDP/123 is not reachable through the setup AP and check packet timestamps against
+the centralized status/serial source diagnostics.
 
 Round 2 validation performed: original Round 1 host suite passed before changes;
 updated C++11 host suite passed with -Wall -Wextra -Werror -pedantic; final

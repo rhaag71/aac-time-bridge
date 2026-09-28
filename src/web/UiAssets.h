@@ -46,6 +46,9 @@ function apply(d){
  put('lan-address',d.lanAddress);put('recovery-ap',d.recoveryAp);put('ap-address',d.apAddress);
  put('configuration-storage',d.configurationStorage);put('ap-operation',d.apOperation);
  put('watchdog-status',d.watchdogStatus);put('reset-reason',d.resetReason);put('watchdog-reset',d.watchdogReset);
+ put('ntp-service',d.ntpService==='listening'?'Listening on UDP/123':d.ntpService==='socket-error'?'Socket error ('+d.ntpLastError+')':'Not listening (off-LAN)');
+ put('ntp-state',d.ntpState);put('ntp-reference',d.ntpReference);
+ put('ntp-requests',d.ntpRequests+' requests / '+d.ntpReplies+' replies ('+d.ntpSynchronizedReplies+' sync, '+d.ntpUnsynchronizedReplies+' unsync, '+d.ntpRejectedRequests+' rejected)');
  put('uptime-snapshot',d.uptimeSeconds+' s');put('source-utc-quality',d.sourceUtcQuality);
  put('pico-packet',d.picoPacket);put('pico-sequences',d.picoSequences);put('pico-flags',d.picoFlags);
  put('pico-satellites',d.picoSatellites);put('packet-age',d.packetAgeMs===null?'Unavailable':d.packetAgeMs+' ms');

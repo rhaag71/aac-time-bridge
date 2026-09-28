@@ -166,8 +166,12 @@ void NetworkServices::poll(MonotonicUs now, NetworkState& state) {
     snprintf(state.apAddress, sizeof(state.apAddress), "%s", apActive_ ? WiFi.softAPIP().toString().c_str() : "unavailable");
     snprintf(state.apName, sizeof(state.apName), "%s", apActive_ ? apName_ : "");
 }
-void NetworkServices::serve(const ApplianceState& state) {
+void NetworkServices::serve(ApplianceState& state) {
     const auto now = static_cast<MonotonicUs>(esp_timer_get_time());
+    const bool lanConnected = state.network.status == NetworkStatus::Connected &&
+                              static_cast<uint32_t>(WiFi.localIP()) != 0;
+    ntpServer_.poll(lanConnected, static_cast<uint32_t>(WiFi.localIP()), state.clock, now);
+    state.diagnostics.ntp = ntpServer_.diagnostics();
     if (!client_) {
         request_.clear(); // Also discard partial bodies when a peer disconnects.
         client_ = web_.available();

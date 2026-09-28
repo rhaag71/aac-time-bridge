@@ -8,6 +8,7 @@
 #include "status/StatusPage.h"
 #include <WiFi.h>
 #include "HttpRequest.h"
+#include "NtpServer.h"
 #include "platform/ApplianceReset.h"
 #include "web/UiAssets.h"
 namespace aac {
@@ -15,7 +16,7 @@ class NetworkServices {
 public:
     void begin();
     void poll(MonotonicUs now, NetworkState& state);
-    void serve(const ApplianceState& state);
+    void serve(ApplianceState& state);
     bool takeBenchRequest();
 private:
     void startConnection(MonotonicUs now);
@@ -44,6 +45,7 @@ private:
     bool benchRequest_ = false;
     LineEditor console_;
     NetworkPolicy networkPolicy_;
+    NtpServer ntpServer_;
     bool apStopFailed_ = false;
     MonotonicUs lastApStopAttempt_ = 0;
     MonotonicUs lastAttempt_ = 0, lastApAttempt_ = 0;

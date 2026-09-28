@@ -10,10 +10,18 @@ It runs on an ESP32 as a standalone network appliance that can consume time
 from the RP2350-based Absurdly Accurate Clock.
 
 The Absurdly Accurate Clock (AAC) is the authoritative external source; current
-AAC firmware runs on the Pico 2 / RP2350. NTP serving its qualified UTC to the
-LAN is future work. The appliance does not use Internet NTP or the
+AAC firmware runs on the Pico 2 / RP2350. The LAN NTP server serves qualified
+AAC UTC only. The appliance does not use Internet NTP or the
 ESP32 system clock as a fallback. Without trustworthy external time it remains
 operational and UNSYNCHRONIZED; it never manufactures authoritative time.
+
+## Web interface
+
+![AAC Time Bridge web interface](docs/aac-time-bridge-webui-screenshot.png)
+
+The AAC Time Bridge provides a live local status interface showing authoritative
+UTC, source qualification, network state, timing diagnostics, watchdog state,
+and appliance controls.
 
 ## Clock Interface Protocol
 
@@ -84,8 +92,34 @@ authority prints its acquisition transition once and then stays quiet. Fault
 reports retain packet result, received-byte preview where applicable, counters,
 ages, flags, sequences, satellites and rejection reason. Output uses a fixed
 line buffer and small nonblocking UART chunks; no formatting or printing occurs
-in the TIME_SYNC ISR. NTP serving remains unimplemented; live status uses short
-HTTP polling rather than WebSocket.
+in the TIME_SYNC ISR. NTP serves UDP/123 only on the infrastructure LAN IP;
+live status uses short HTTP polling rather than WebSocket.
+
+## LAN NTP service
+
+When the station interface has a usable LAN address, the appliance listens on
+UDP port 123 bound to that address. It accepts basic NTP v3/v4 client requests
+and handles at most one fixed-buffer datagram per application pass. The service
+uses stratum 1 because its direct reference is the GPS-disciplined AAC; the
+four-byte reference ID is `AAC `. It derives reference, receive and transmit
+timestamps from the qualified TIME_SYNC-derived UTC/monotonic anchor, including
+the 32-bit NTP fractional second. It never reads ESP32 wall time.
+
+If AAC authority is unavailable, replies explicitly use LI=3 (unsynchronized),
+stratum 16 and `INIT`, with zero reference/receive/transmit timestamps. The
+client's originate timestamp is still echoed. Qualification is rechecked for
+each request, so source loss withdraws valid NTP time promptly and recovery is
+automatic. The setup AP does not expose NTP. The status diagnostics report
+listener state, current authority/stratum, request/reply totals and rejected
+requests.
+
+LAN characterization on 2026-09-28 returned qualified stratum-1 NTP responses
+for all 100 requests, with LI=0, v4 server mode, Reference ID `AAC `, and exact
+originate echo. Client offset ranged from -2.458 to +81.181 ms (mean +34.915 ms)
+relative to the T470 system clock; network delay ranged from 8.061 to 232.187 ms
+(mean 104.382 ms). This establishes functional operation and LAN timing, not
+absolute UTC error. Absolute accuracy against the AAC/GPS PPS boundary remains
+unqualified pending an independent oscilloscope measurement.
 
 The v1 SPI/TIME_SYNC path has now been exercised on hardware: ACT1 packets and CRC
 validate, AAC UTC qualifies, phase association is established, and sequences
@@ -281,14 +315,13 @@ validate actual watchdog recovery.
 The appliance uses centralized state, a 30-second application task watchdog,
 reset diagnostics, GPIO16 external status indication, persistent Wi-Fi,
 reconnection/recovery AP and a single-page local UI. AAC Protocol v1 SPI/TIME_SYNC
-acquisition is implemented and now bench-confirmed to qualify authoritative UTC;
-NTP serving remains future work.
+acquisition is implemented and bench-confirmed to qualify authoritative UTC.
 
 Operator bench-verified on production NodeMCU ESP-32S: virgin boot starts the open
 AP; web provisioning saves credentials and joins the LAN; Serial immediately
 announces the LAN URL; normal web reboot preserves configuration; confirmed web
 factory reset erases AAC-owned configuration and returns to setup; reprovisioning
-works. Subsequent Pico bring-up confirmed packet/CRC validity, authority selection,
+works. Subsequent AAC bring-up confirmed packet/CRC validity, authority selection,
 quality qualification, TIME_SYNC phase association and progressing sequences.
 Watchdog recovery has not been hardware bench validated.
 

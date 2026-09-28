@@ -78,7 +78,7 @@ void Application::printStatus(const char* prefix) const {
     const auto& pico = state_.diagnostics.pico;
     const MonotonicUs packetAge = pico.hasValidPacketAt && state_.uptimeUs >= pico.lastValidPacketAtUs ? state_.uptimeUs - pico.lastValidPacketAtUs : 0;
     const MonotonicUs edgeAge = pico.hasEdgeAt && state_.uptimeUs >= pico.lastQualifiedEdgeAtUs ? state_.uptimeUs - pico.lastQualifiedEdgeAtUs : 0;
-    Serial.printf("%s | network=%s IP=%s setup-AP=%s AP-IP=%s | clock=%s selected=%s | AAC=%s/%s pkt=%lu bnd=%lu sync=%lu flags=0x%04X sat=%s%u tx=%lu edge=%lu overrun=%lu packet-age=%s%llu ms edge-age=%s%llu ms phase=%s reason=%s | watchdog=%s error=%d\n",
+    Serial.printf("%s | network=%s IP=%s setup-AP=%s AP-IP=%s | clock=%s selected=%s | AAC=%s/%s pkt=%lu bnd=%lu sync=%lu flags=0x%04X sat=%s%u tx=%lu edge=%lu overrun=%lu packet-age=%s%llu ms edge-age=%s%llu ms phase=%s reason=%s | NTP=%s req=%lu sync=%lu unsync=%lu reject=%lu stratum=%u err=%d | watchdog=%s error=%d\n",
         prefix, networkStatusName(state_.network.status), state_.network.address,
         state_.network.provisioning ? "active" : "off", state_.network.apAddress,
         statusLedOn(state_) ? "synchronized" : "unsynchronized",
@@ -92,6 +92,12 @@ void Application::printStatus(const char* prefix) const {
         pico.hasValidPacketAt ? "" : "unknown/", static_cast<unsigned long long>(packetAge / 1000ULL),
         pico.hasEdgeAt ? "" : "unknown/", static_cast<unsigned long long>(edgeAge / 1000ULL),
         pico.phaseAssociated ? "yes" : "no", sourceErrorName(state_.clock.pico.report.error),
+        ntpServiceStateName(state_.diagnostics.ntp.state), static_cast<unsigned long>(state_.diagnostics.ntp.requests),
+        static_cast<unsigned long>(state_.diagnostics.ntp.synchronizedReplies),
+        static_cast<unsigned long>(state_.diagnostics.ntp.unsynchronizedReplies),
+        static_cast<unsigned long>(state_.diagnostics.ntp.rejectedRequests),
+        static_cast<unsigned>(state_.diagnostics.ntp.stratum),
+        state_.diagnostics.ntp.lastError,
         state_.diagnostics.watchdogArmed ? "armed" : "FAULT", state_.diagnostics.watchdogError);
 }
 }
