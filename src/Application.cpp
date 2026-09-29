@@ -81,7 +81,7 @@ void Application::printStatus(const char* prefix) const {
     Serial.printf("%s | network=%s IP=%s setup-AP=%s AP-IP=%s | clock=%s selected=%s | AAC=%s/%s pkt=%lu bnd=%lu sync=%lu flags=0x%04X sat=%s%u tx=%lu edge=%lu overrun=%lu packet-age=%s%llu ms edge-age=%s%llu ms phase=%s reason=%s | NTP=%s req=%lu sync=%lu unsync=%lu reject=%lu stratum=%u err=%d | watchdog=%s error=%d\n",
         prefix, networkStatusName(state_.network.status), state_.network.address,
         state_.network.provisioning ? "active" : "off", state_.network.apAddress,
-        statusLedOn(state_) ? "synchronized" : "unsynchronized",
+        authoritativeUtcAvailable(state_) ? "synchronized" : "unsynchronized",
         state_.clock.selected == SourceId::Pico ? "AAC" : "none",
         state_.clock.pico.report.availability == Availability::Available ? "responding" : "unavailable",
         picoPacketResultName(pico.lastResult), static_cast<unsigned long>(pico.packetSequence),

@@ -58,7 +58,7 @@ inline bool currentUtc(const ClockState& clock, MonotonicUs now, int64_t& second
     seconds = a.utcSeconds + static_cast<int64_t>(increment);
     return true;
 }
-inline bool statusLedOn(const ApplianceState& state) {
+inline bool authoritativeUtcAvailable(const ApplianceState& state) {
     int64_t ignored;
     return state.initialized && currentUtc(state.clock, state.uptimeUs, ignored);
 }

@@ -7,6 +7,7 @@ void StatusIndicator::begin() {
     digitalWrite(kStatusLedGpio, LOW);
 }
 void StatusIndicator::render(const ApplianceState& state) {
-    digitalWrite(kStatusLedGpio, statusLedOn(state) ? HIGH : LOW);
+    const auto pattern = statusLedPatternFor(state);
+    digitalWrite(kStatusLedGpio, statusLedOnAt(pattern, state.uptimeUs) ? HIGH : LOW);
 }
 }

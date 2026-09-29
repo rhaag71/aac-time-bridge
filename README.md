@@ -54,8 +54,32 @@ The production firmware now implements the v1 read-only AAC source interface. Wi
 
 Use a shared ground and 3.3 V logic only. Keep GPIO27 idle high; an external
 10 kOhm pull-up to Pico 3V3 is recommended. GPIO26 remains reserved and
-unconfigured, GPIO16 remains the external status LED, and GPIO25 has internal
-pulls disabled. Do not drive an unpowered board through its signal pins.
+unconfigured, and GPIO25 has internal pulls disabled. Do not drive an unpowered
+board through its signal pins.
+
+### External status LED
+
+GPIO16 / NodeMCU P16 / physical header pin 27 drives an active-high external
+status LED. Wire **GPIO16 → series resistor → LED → GND**. A resistor in the
+rough range of 330 Ω to 1 kΩ is a reasonable starting point; choose the final
+value for the LED forward voltage and desired brightness. The pin is held LOW
+through application startup.
+
+| Indication | Pattern | Meaning |
+| --- | --- | --- |
+| Solid ON | Continuous | Normal station network and qualified AAC-derived authoritative UTC |
+| Slow blink | 500 ms ON, 500 ms OFF | Station network operational; AAC responds, but its time is not qualified |
+| Fast blink | 125 ms ON, 125 ms OFF | Station network operational; AAC is unavailable or communication failed |
+| Double blink | 150 ms ON, 200 ms OFF, 150 ms ON, then 1,100 ms OFF | Normal station network unavailable or recovery AP active |
+| OFF | Continuous | Startup, uninitialized, or otherwise unclassified state |
+
+Network fault/recovery AP has priority over AAC availability; AAC unavailable
+has priority over responding-but-unqualified time. Solid ON requires both a
+connected station network and currently qualified AAC UTC. For bench checks,
+expect normal operation solid, GPS removed while AAC remains responsive slow,
+AAC/Pico removed fast, router/AP unavailable double, and startup off. The LED
+renders centralized appliance state; it does not independently qualify time or
+select an authority.
 
 SPI starts at 100 kHz, mode 1, MSB first, 8-bit words. The controller waits at
 least one second before its first request, holds CS high for at least 1 ms

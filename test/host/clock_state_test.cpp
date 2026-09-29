@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 #include "clock/ClockState.h"
 #include "status/ApplianceState.h"
+#include "status/StatusIndicatorState.h"
 #include "network/Configuration.h"
 #include "network/HttpRequest.h"
 #include <assert.h>
@@ -106,11 +107,12 @@ int main() {
     ApplianceState app;
     app.clock = selectClock(ready(SourceId::Pico), 120);
     app.uptimeUs = 120;
-    assert(!statusLedOn(app)); // Initialization gates the renderer.
+    assert(statusLedPatternFor(app) == StatusLedPattern::Off); // Initialization gates the renderer.
     app.initialized = true;
-    assert(statusLedOn(app));
+    app.network.status = NetworkStatus::Connected;
+    assert(statusLedPatternFor(app) == StatusLedPattern::SolidOn);
     app.uptimeUs = 160;
-    assert(!statusLedOn(app)); // A retained snapshot cannot outlive its deadline.
+    assert(statusLedPatternFor(app) == StatusLedPattern::SlowBlink); // A retained snapshot cannot outlive its deadline.
     int64_t utc = -7;
     assert(!currentUtc(app.clock, 160, utc) && utc == -7);
     assert(!currentUtc(app.clock, 99, utc));

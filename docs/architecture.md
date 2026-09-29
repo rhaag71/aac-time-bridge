@@ -38,6 +38,38 @@ not through ESP32 system time or a narrowing time_t. This is representation,
 not an accuracy claim. The web page is a refreshable snapshot. No async consumer
 retains state references; future concurrent tasks will require synchronized copies.
 
+### GPIO16 external status indicator
+
+The external active-high LED is on GPIO16 (NodeMCU-32S P16, physical header pin
+27). Wire GPIO16 through a series resistor and LED to GND. A 330 Ω–1 kΩ range is
+a practical starting point; select the value for the LED forward voltage and
+desired brightness. Firmware preloads LOW, configures OUTPUT, then writes LOW
+again at the start of `Application::begin()`. This does not claim control during
+ROM or bootloader execution. It remains LOW until the application has initialized
+and rendered centralized state.
+
+`status/StatusIndicatorState.h` maps `ApplianceState` to a pattern; the platform
+`StatusIndicator` only renders that pattern using monotonic application uptime.
+Station connectivity and recovery-AP state take priority, then AAC communication
+availability, then the existing centralized `authoritativeUtcAvailable()` check.
+The LED does not implement source selection, time qualification, or NTP state.
+Patterns are nonblocking and do not respond to NTP traffic:
+
+| Pattern | Timing | Selected centralized state |
+| --- | --- | --- |
+| Solid ON | Continuous | Initialized, station `Connected`, recovery AP inactive, AAC UTC currently qualified |
+| Slow blink | 500 ms ON / 500 ms OFF (1 s cycle) | Station `Connected`, recovery AP inactive, AAC available/responding, UTC not currently qualified |
+| Fast blink | 125 ms ON / 125 ms OFF (250 ms cycle) | Station `Connected`, recovery AP inactive, AAC unavailable or communication failed |
+| Double blink | 150 ms ON, 200 ms OFF, 150 ms ON, 1,100 ms OFF (1.6 s cycle) | Initialized but station is not `Connected`, or recovery AP is active |
+| OFF | Continuous | Not initialized or no listed operational condition |
+
+The priority is recovery/network fault → AAC unavailable → AAC responding but
+unqualified → normal qualified operation → OFF. Thus a network fault overrides
+qualified AAC time. Expected bench observations are normal operation solid,
+GPS receiver removed while AAC remains responsive slow, AAC/Pico removed fast,
+router/AP unavailable double, and startup off. These patterns describe intended
+indications; verify them on hardware before claiming electrical validation.
+
 ## AAC acquisition over Protocol v1
 
 The pin assignment is GPIO23 VSPI MOSI to Pico GP8/SPI1 RX, GPIO27 software CS
